@@ -1,0 +1,5 @@
+[
+    {"caption": "DocPHP: show definition", "command": "docphp_show_definition"},
+    {"caption": "DocPHP: checkout language", "command": "docphp_checkout_language"},
+    {"caption": "DocPHP: select language", "command": "docphp_select_language"},
+]

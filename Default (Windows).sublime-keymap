@@ -1,0 +1,3 @@
+[
+	{ "keys": ["ctrl+alt+d"], "command": "docphp_show_definition"}
+]
