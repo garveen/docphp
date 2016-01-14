@@ -16,7 +16,6 @@ language = '';
 
 def getSetting( key ):
     global currentView, currentSettings;
-    print(currentView.settings().get('docphp.svn_bin'))
 
     local = 'docphp.' + key
     return currentView.settings().get( local, currentSettings.get( key, 'not found' ) )
@@ -223,7 +222,7 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
 
 
 
-def selectLanguage():
+def installLanguagePopup():
     languages = {};
     for path in glob.glob(getDocphpPath() + 'language/*'):
         match = re.search('docphp/language.([a-zA-Z]{2}(_[a-zA-Z]{2}){0,1})$', path);
@@ -249,6 +248,7 @@ def selectLanguage():
 
                 os.rename(languagePath + '/phpdoc_svn', languagePath + '/phpdoc');
                 sublime.message_dialog('Language ' + languageName + ' is checked out');
+                selectLanguage(languageName)
             else:
                 if getSetting('debug'):
                     print(out);
@@ -267,7 +267,7 @@ def initLanguage():
     out, err = p.communicate();
     if p.returncode == 0:
         os.rename(docphpPath + 'language_svn', docphpPath + 'language');
-        selectLanguage();
+        installLanguagePopup();
     else:
         print(out);
         shutil.rmtree(getDocphpPath() + 'language_svn')
@@ -315,8 +315,13 @@ class DocphpCheckoutLanguageCommand(sublime_plugin.TextCommand):
             sublime.set_timeout_async(initLanguage, 0);
             sublime.status_message('init language list...');
         else:
-            selectLanguage()
+            installLanguagePopup()
         return;
+
+def selectLanguage(name):
+    currentSettings.set('language', name);
+    sublime.save_settings('docphp.sublime-settings');
+    currentView.settings().set('docphp.language', name);
 
 class DocphpSelectLanguageCommand(sublime_plugin.TextCommand):
     def run(self, edit):
@@ -330,11 +335,10 @@ class DocphpSelectLanguageCommand(sublime_plugin.TextCommand):
             if match:
                 if os.path.isdir(path + '/phpdoc'):
                     languages.append(match.group(1));
-        def selectLanguage(index):
+
+        def selectLanguageCallback(index):
             if index != -1:
                 language = languages[index];
-                currentView.settings().set('docphp.language', language);
-                currentSettings.set('language', language);
-                sublime.save_settings('docphp.sublime-settings');
+                selectLanguage(language)
 
-        currentView.window().show_quick_panel(languages, selectLanguage);
+        currentView.window().show_quick_panel(languages, selectLanguageCallback);
