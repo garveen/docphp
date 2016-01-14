@@ -413,7 +413,7 @@ def downloadLanguageGZ(name):
     except (urllib.error.URLError) as e:
         err = '%s: URL error %s contacting API' % (__name__, str(e.reason))
     except Exception as e:
-        err = exception.__class__.__name__
+        err = e.__class__.__name__
 
     sublime.message_dialog('Language ' + name + ' checkout failed. Please try again.');
 
