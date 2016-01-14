@@ -5,6 +5,10 @@ import os
 import subprocess
 import glob
 import shutil
+import urllib.request
+import io
+import tarfile
+import webbrowser
 
 docphp_languages = {};
 entities = {};
@@ -25,14 +29,18 @@ def getSetting( key ):
     global currentView, currentSettings;
 
     local = 'docphp.' + key
-    return currentView.settings().get( local, currentSettings.get( key, 'not found' ) )
+    settings = currentView.settings();
+    if settings:
+        return settings.get( local, currentSettings.get( key, 'not found' ) );
+    else:
+        return currentSettings.get( key );
 
 def generateEntities():
     global entities;
 
     def generate():
         entitiesLocal = {};
-        for entitiesFile in glob.glob(getI18nPath() + '*.ent'):
+        for entitiesFile in glob.glob(getI18nSvnPath() + '*.ent'):
             with open(entitiesFile, 'r', -1, 'utf8') as f:
                 entitiesText = f.read(10485760);
             matches = re.findall("^<!ENTITY\s+([a-zA-Z0-9._-]+)\s+(['\"])([\s\S]*?)\\2>$", entitiesText, re.MULTILINE);
@@ -66,24 +74,52 @@ def decodeEntity(xml):
 def getDocphpPath():
     return sublime.cache_path() + '/docphp/';
 
-def getI18nPath():
+def getTarGzPath():
+    return sublime.cache_path() + '/docphp/language/php_manual_' + language + '.tar.gz';
+
+def getI18nCachePath():
+    return sublime.cache_path() + '/docphp/language/' + language + '/';
+
+def getI18nSvnPath():
     return sublime.cache_path() + '/docphp/language/' + language + '/phpdoc/';
 
 def loadLanguage():
     global docphp_languages;
 
-    if not os.path.isdir(getI18nPath()):
+    if not getSetting('use_svn'):
+        if not os.path.isfile(getTarGzPath()):
+            return False;
+
+        def generate():
+            symbols = {};
+            tarGzPath = getTarGzPath();
+
+            with tarfile.open(tarGzPath) as tar:
+
+                for tarinfo in tar:
+                    m = re.search('^php-chunked-xhtml/(.*)\.html$', tarinfo.name);
+                    if m:
+                        symbols[m.group(1)] = m.group(0);
+            return symbols;
+
+        symbols = getJsonOrGenerate('packed_symbols', generate);
+        docphp_languages[language] = {"symbolList": symbols, "definition": {}};
+
+
+        return True;
+
+    if not os.path.isdir(getI18nSvnPath()):
         return False;
 
     def generate():
         functions = {};
-        i18nPath = getI18nPath();
+        i18nPath = getI18nSvnPath();
         pathLen = len(i18nPath);
         for root, dirnames, filenames in os.walk(i18nPath):
             if re.search('functions$', root):
                 for xmlFile in filenames:
                     for name in re.findall('^(.+)\.xml$', xmlFile):
-                        functions[re.sub('-', '_', name)] = os.path.join(root[pathLen:], xmlFile);
+                        functions[name] = os.path.join(root[pathLen:], xmlFile);
         return functions;
 
     functions = getJsonOrGenerate('functions', generate);
@@ -91,7 +127,7 @@ def loadLanguage():
     return True;
 
 def getJsonOrGenerate(name, callback):
-    filename = getI18nPath() + name + '.json';
+    filename = getI18nSvnPath() + '../' + name + '.json';
     if os.path.exists(filename):
         with open(filename, 'r', encoding='utf8') as f:
             json = f.read(10485760);
@@ -108,85 +144,126 @@ def getJsonOrGenerate(name, callback):
 
     return content;
 
-def getSymbolDescription(symbol):
+def getSymbolDescription(symbol, only_function = True):
 
     if language not in docphp_languages and not loadLanguage():
         sublime.error_message('The language "' + language + '" not installed\nYou can use\n\n   docphp: checkout language\n\nto checkout a language pack');
-        return False;
-
+        return None, False;
+    if only_function and not getSetting('use_svn'):
+        symbol = 'function.' + symbol
     if symbol not in docphp_languages[language]["symbolList"]:
-        return None;
+        return None, None;
     else:
 
         if symbol not in docphp_languages[language]["definition"]:
-            defFile = docphp_languages[language]["symbolList"][symbol];
+            if not getSetting('use_svn'):
+                output = ''
+                path = getI18nCachePath() + 'php-chunked-xhtml/';
+                filename = path + symbol + '.html'
+                if os.path.isfile(filename):
+                    with open(filename, 'r', encoding='utf8', errors='ignore') as f:
+                        output = f.read()
+                else:
 
-            with open(getI18nPath() + defFile, 'r', encoding='utf8') as f:
-                xml = f.read(10485760);
-            xml = re.sub(' xmlns="[^"]+"', '', xml, 1);
-            xml = decodeEntity(xml);
-            xml = re.sub(' xlink:href="[^"]+"', '', xml);
-            try:
-                root = ET.fromstring(xml);
-            except ET.ParseError as e:
-                if getSetting('debug'):
-                    print(xml);
-                    raise e;
-                sublime.error_message('Cannot read definition of ' + symbol + ', please report this issue on github');
-                return False;
-            output = '';
+                    with tarfile.open(getTarGzPath()) as tar:
+                        member = tar.getmember(docphp_languages[language]["symbolList"][symbol])
+                        f=tar.extractfile(member)
+                        output = f.read().decode(errors='ignore')
+                        output = re.sub('[\s\S]+?(<div[^<>]+?id="'+re.escape(symbol)+'"[\s\S]+?)<div[^<>]+?class="manualnavbar[\s\S]+', '\\1', output)
+                        dic = {
+                            '&mdash;': '--',
+                            '&quot;': "'",
+                            '<br>': '',
+                            '&#039;': "'",
+                            '&$': "&amp;",
+                            '&raquo;': '>>',
+                        }
+                        pattern = "|".join(map(re.escape, dic.keys()))
 
-            refsect1 = root.find('refsect1[@role="description"]');
-            if not refsect1:
-                refsect1 = root.find('refsect1');
+                        output = re.sub(pattern, lambda m: dic[m.group()], output)
+                        output = re.sub('(<h[1-6][^<>]*>)([^<>]*)(</h[1-6][^<>]*>)', '\\1<a href="http://php.net/manual/'+language+'/'+symbol+'.php">\\2</a><br>\\3<a href="history.back">back</a>', output, count=1)
 
-            methodsynopsis = refsect1.find('methodsynopsis');
+                        output = '<style>#container{margin:10px}</style><div id="container">' + output + "</div>";
 
-            if not methodsynopsis:
-                methodsynopsis = root.find('refsect1/methodsynopsis');
+                        if not os.path.isdir(path):
+                            os.makedirs(path);
+                        with open(filename, 'wb') as f:
+                            f.write(output.encode())
 
-            output += '<type>' + methodsynopsis.find('type').text + '</type> <b style="color:#369">' + symbol + "</b> (";
-            hasPrviousParam = False;
-            for methodparam in methodsynopsis.findall('methodparam'):
 
-                output += ' ';
-                attrib = methodparam.attrib;
-                opt = False;
-                if "choice" in attrib and attrib['choice'] == 'opt':
-                    opt = True;
-                    output += "[";
-                if hasPrviousParam:
-                    output += ", ";
-                output += '<type>' + methodparam.find('type').text + "</type> $" + methodparam.find('parameter').text;
-                if opt:
-                    output += "]";
-                hasPrviousParam = True;
-            output += " )\n";
+            else:
 
-            # output += root.find('refnamediv/refpurpose').text.strip() + "\n\n";
+                defFile = docphp_languages[language]["symbolList"][symbol];
 
-            for para in refsect1.findall('para'):
-                output += "   " + re.sub("<.*?>", "", re.sub("<row>([\s\S]*?)</row>", "\\1<br>", re.sub("\s\s+", " ", ET.tostring(para, 'utf8', 'html').decode()))) + "\n";
+                with open(getI18nSvnPath() + defFile, 'r', encoding='utf8') as f:
+                    xml = f.read(10485760);
+                xml = re.sub(' xmlns="[^"]+"', '', xml, 1);
+                xml = decodeEntity(xml);
+                xml = re.sub(' xlink:href="[^"]+"', '', xml);
+                try:
+                    root = ET.fromstring(xml);
+                except ET.ParseError as e:
+                    if getSetting('debug'):
+                        print(xml);
+                        raise e;
+                    sublime.error_message('Cannot read definition of ' + symbol + ', please report this issue on github');
+                    return None, False;
+                output = '';
 
-            output += "\n";
+                refsect1 = root.find('refsect1[@role="description"]');
+                if not refsect1:
+                    refsect1 = root.find('refsect1');
 
-            variablelist = root.findall('refsect1[@role="parameters"]/para/variablelist/varlistentry');
-            for variable in variablelist:
-                output += ET.tostring(variable.find('term/parameter'), 'utf8', 'html').decode() + " :\n";
-                for para in variable.findall('listitem/para'):
-                    # TODO: parse table
-                    output += "   " +re.sub("<row>([\s\S]*?)</row>", "\\1<br>", re.sub("\s\s+", " ", ET.tostring(para, 'utf8', 'html').decode())) + "\n";
+                methodsynopsis = refsect1.find('methodsynopsis');
+
+                if not methodsynopsis:
+                    methodsynopsis = root.find('refsect1/methodsynopsis');
+
+                output += '<type>' + methodsynopsis.find('type').text + '</type> <b style="color:#369">' + symbol + "</b> (";
+                hasPrviousParam = False;
+                for methodparam in methodsynopsis.findall('methodparam'):
+
+                    output += ' ';
+                    attrib = methodparam.attrib;
+                    opt = False;
+                    if "choice" in attrib and attrib['choice'] == 'opt':
+                        opt = True;
+                        output += "[";
+                    if hasPrviousParam:
+                        output += ", ";
+                    output += '<type>' + methodparam.find('type').text + "</type> $" + methodparam.find('parameter').text;
+                    if opt:
+                        output += "]";
+                    hasPrviousParam = True;
+                output += " )\n";
+
+                # output += root.find('refnamediv/refpurpose').text.strip() + "\n\n";
+
+                for para in refsect1.findall('para'):
+                    output += "   " + re.sub("<.*?>", "", re.sub("<row>([\s\S]*?)</row>", "\\1<br>", re.sub("\s\s+", " ", ET.tostring(para, 'utf8', 'html').decode()))) + "\n";
+
                 output += "\n";
-            output += "\n";
 
-            returnvalues = root.findall('refsect1[@role="returnvalues"]/para');
-            for para in returnvalues:
-                output += re.sub("\s\s+", " ", ET.tostring(para, 'utf8', 'html').decode()).strip() + "\n";
+                variablelist = root.findall('refsect1[@role="parameters"]/para/variablelist/varlistentry');
+                for variable in variablelist:
+                    output += ET.tostring(variable.find('term/parameter'), 'utf8', 'html').decode() + " :\n";
+                    for para in variable.findall('listitem/para'):
+                        # TODO: parse table
+                        output += "   " +re.sub("<row>([\s\S]*?)</row>", "\\1<br>", re.sub("\s\s+", " ", ET.tostring(para, 'utf8', 'html').decode())) + "\n";
+                    output += "\n";
+                output += "\n";
+
+                returnvalues = root.findall('refsect1[@role="returnvalues"]/para');
+                for para in returnvalues:
+                    output += re.sub("\s\s+", " ", ET.tostring(para, 'utf8', 'html').decode()).strip() + "\n";
 
             docphp_languages[language]["definition"][symbol] = output;
-        return docphp_languages[language]["definition"][symbol];
+        return symbol, docphp_languages[language]["definition"][symbol];
 
 class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
+    history = [];
+    currentSymbol = '';
+
     def run(self, edit):
         global language, currentView;
         view = self.view;
@@ -202,30 +279,56 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
 
         view.run_command('expand_selection', {"to": "word"});
 
-        symbol = view.substr(selection[0]);
+        symbol = view.substr(selection[0]).replace('_', '-');
         selection.clear();
         selection.add_all(selectionBackup);
 
         # symbol = 'basename'
 
-        symbolDescription = getSymbolDescription(symbol);
+        symbol, symbolDescription = getSymbolDescription(symbol);
         if symbolDescription == None:
             if getSetting('prompt_when_not_found'):
-                sublime.message_dialog('not found');
+                view.show_popup('not found')
             return;
         if symbolDescription == False:
             return;
 
         if getSetting('use_panel') == False:
-            output = re.sub('\n', '<br>\n', symbolDescription);
-            output = re.sub('<parameter>', '<parameter style="color:#369;font-weight:900"><b>', output)
-            output = re.sub('</parameter>', '</b></parameter>', output)
-            output = re.sub('<type>', '<type style="color:#369">', output)
+            output = symbolDescription
+            if getSetting('use_svn'):
+                output = re.sub('\n', '<br>\n', symbolDescription);
+                output = re.sub('<parameter>', '<parameter style="color:#369;font-weight:900"><b>', output)
+                output = re.sub('</parameter>', '</b></parameter>', output)
+                output = re.sub('<type>', '<type style="color:#369">', output)
             if getSetting('debug'):
                 print(output)
+
+            self.currentSymbol = symbol;
+            def on_hide():
+                self.currentSymbol = '';
+                self.history = [];
+
+            def on_navigate(url):
+                if url[:4] == 'http':
+                    webbrowser.open_new(url)
+                    return True;
+
+                if url == 'history.back':
+                    symbol = self.history.pop()
+                    self.currentSymbol = symbol
+
+                else:
+                    self.history.append(self.currentSymbol)
+                    symbol = url[:url.find('.html')];
+                    self.currentSymbol = symbol;
+
+                # It seems sublime will core when the output is too long
+                # In some cases the value can set to 76200, but we use a 65535 for safety.
+                symbol, content = getSymbolDescription(symbol, only_function = False)[:65535];
+                view.update_popup(content)
             view.show_popup(output, location = -1,
-                    max_width = 640, max_height = 480,
-                    on_navigate = None, on_hide = None)
+                    max_width = getSetting('popup_max_width'), max_height = getSetting('popup_max_height'),
+                    on_navigate = on_navigate, on_hide = on_hide)
             return;
         else:
             output = re.sub('<.*?>', '', symbolDescription);
@@ -245,7 +348,6 @@ def installLanguagePopup():
         match = re.search('docphp/language.([a-zA-Z]{2}(_[a-zA-Z]{2}){0,1})$', path);
         if match:
             languages[match.group(1)] = path;
-
     languageList = list(languages);
 
     def updateLanguage(index):
@@ -255,44 +357,77 @@ def installLanguagePopup():
         languagePath = languages[languageName];
 
         def checkoutLanguage():
-            sublime.status_message('checking out ' + languageName);
+            if getSetting('use_svn'):
+                sublime.status_message('checking out ' + languageName);
 
-            p = runCmd('svn', ['checkout', 'http://svn.php.net/repository/phpdoc/' + languageName + '/trunk', 'phpdoc_svn'], languagePath);
-            out, err = p.communicate();
-            if p.returncode == 0:
-                if os.path.isdir(languagePath + '/phpdoc'):
-                    shutil.rmtree(languagePath + '/phpdoc');
+                p = runCmd('svn', ['checkout', 'http://svn.php.net/repository/phpdoc/' + languageName + '/trunk', 'phpdoc_svn'], languagePath);
+                out, err = p.communicate();
+                if p.returncode == 0:
+                    if os.path.isdir(languagePath + '/phpdoc'):
+                        shutil.rmtree(languagePath + '/phpdoc');
 
-                os.rename(languagePath + '/phpdoc_svn', languagePath + '/phpdoc');
-                sublime.message_dialog('Language ' + languageName + ' is checked out');
-                selectLanguage(languageName)
+                    os.rename(languagePath + '/phpdoc_svn', languagePath + '/phpdoc');
+                    sublime.message_dialog('Language ' + languageName + ' is checked out');
+                    selectLanguage(languageName)
+                else:
+                    if getSetting('debug'):
+                        print(out);
+                        print(err);
+                    shutil.rmtree(languagePath + '/phpdoc_svn');
             else:
-                if getSetting('debug'):
-                    print(out);
-                    print(err);
-                shutil.rmtree(languagePath + '/phpdoc_svn');
+
+                if downloadLanguageGZ(languageName):
+                    sublime.message_dialog('Language ' + languageName + ' is checked out');
+                    selectLanguage(languageName);
+                else:
+                    if getSetting('debug'):
+                        print('download error')
 
         sublime.set_timeout_async(checkoutLanguage, 0);
 
     currentView.window().show_quick_panel(languageList, updateLanguage);
 
+def downloadLanguageGZ(name):
+    err = None;
+    try:
+        url = 'http://php.net/distributions/manual/php_manual_' + name + '.tar.gz'
 
+        filename = getDocphpPath() + 'language/php_manual_' + name + '.tar.gz';
 
-def initLanguage():
-    docphpPath = getDocphpPath();
-    p = runCmd('svn', ['checkout', 'http://svn.php.net/repository/phpdoc', 'language_svn', '--depth=immediates'], docphpPath);
-    out, err = p.communicate();
-    if p.returncode == 0:
-        os.rename(docphpPath + 'language_svn', docphpPath + 'language');
-        installLanguagePopup();
-    else:
-        print(out);
-        shutil.rmtree(getDocphpPath() + 'language_svn')
+        request = urllib.request.Request(url)
+        response = urllib.request.urlopen(request)
 
+        gziped = response.read(16777216);
+
+        with open(filename, 'wb') as handle:
+            handle.write(gziped);
+
+        return True;
+
+    except (urllib.error.HTTPError) as e:
+        err = '%s: HTTP error %s contacting API' % (__name__, str(e.code))
+        if e.code == 404:
+            sublime.message_dialog('Language ' + name + ' MUST checkout by SVN. Please check your settings.');
+            return False;
+
+    except (urllib.error.URLError) as e:
+        err = '%s: URL error %s contacting API' % (__name__, str(e.reason))
+    except Exception as e:
+        err = exception.__class__.__name__
+
+    sublime.message_dialog('Language ' + name + ' checkout failed. Please try again.');
+
+    if getSetting('debug'):
+        print(err);
+    return;
 
 def runCmd(binType, params, cwd = None):
     binary = getSetting(binType + '_bin');
     params.insert(0, binary);
+    if not os.path.isfile(binary) and binary != binType:
+        sublime.error_message("Can't find " + binary + " binary file at " + binary);
+        return False;
+
     try:
         if os.name == 'nt':
             startupinfo = subprocess.STARTUPINFO()
@@ -314,26 +449,10 @@ class DocphpCheckoutLanguageCommand(sublime_plugin.TextCommand):
         view = self.view;
         global currentView;
         currentView = view;
-
-        svn_bin = getSetting('svn_bin');
-
-        if not os.path.isfile(svn_bin) and not svn_bin == "svn":
-            sublime.error_message("Can't find SVN binary file at "+svn_bin);
-            return False;
-
         docphpPath = getDocphpPath();
         if not os.path.isdir(docphpPath):
             os.makedirs(docphpPath);
-
-        p = runCmd('svn', []);
-        if not p:
-            return;
-        if not os.path.isdir(docphpPath + 'language'):
-            sublime.set_timeout_async(initLanguage, 0);
-            sublime.status_message('init language list...');
-        else:
-            installLanguagePopup()
-        return;
+        installLanguagePopup();
 
 def selectLanguage(name):
     currentSettings.set('language', name);
