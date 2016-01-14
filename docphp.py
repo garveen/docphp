@@ -9,10 +9,17 @@ import shutil
 docphp_languages = {};
 entities = {};
 currentView = False;
-currentSettings = sublime.load_settings('docphp.sublime-settings');
-sublime.save_settings('docphp.sublime-settings');
+currentSettings = None;
 
 language = '';
+
+def plugin_loaded():
+    global currentSettings;
+    currentSettings = sublime.load_settings('docphp.sublime-settings');
+    sublime.save_settings('docphp.sublime-settings');
+
+def plugin_unloaded():
+    sublime.save_settings('docphp.sublime-settings');
 
 def getSetting( key ):
     global currentView, currentSettings;
