@@ -36,7 +36,7 @@ def generateEntities():
 def parseEntity(match):
     entity = match.group(1);
     if entity not in entities[language]:
-        return " " + entity + " ";
+        return " <b>" + entity.upper() + "</b> ";
     else:
         return entities[language][entity];
 
@@ -127,7 +127,7 @@ def getSymbolDescription(symbol):
             if not methodsynopsis:
                 methodsynopsis = root.find('refsect1/methodsynopsis');
 
-            output += methodsynopsis.find('type').text + ' ' + symbol + " (";
+            output += '<type>' + methodsynopsis.find('type').text + '</type> <b style="color:#369">' + symbol + "</b> (";
             hasPrviousParam = False;
             for methodparam in methodsynopsis.findall('methodparam'):
 
@@ -139,13 +139,13 @@ def getSymbolDescription(symbol):
                     output += "[";
                 if hasPrviousParam:
                     output += ", ";
-                output += methodparam.find('type').text + " $" + methodparam.find('parameter').text;
+                output += '<type>' + methodparam.find('type').text + "</type> $" + methodparam.find('parameter').text;
                 if opt:
                     output += "]";
                 hasPrviousParam = True;
             output += " )\n";
 
-            output += root.find('refnamediv/refpurpose').text.strip() + "\n\n";
+            # output += root.find('refnamediv/refpurpose').text.strip() + "\n\n";
 
             for para in refsect1.findall('para'):
                 output += "   " + re.sub("<.*?>", "", re.sub("<row>", "\n", re.sub("\s\s+", " ", ET.tostring(para, 'utf8', 'html').decode()))) + "\n";
@@ -154,16 +154,16 @@ def getSymbolDescription(symbol):
 
             variablelist = root.findall('refsect1[@role="parameters"]/para/variablelist/varlistentry');
             for variable in variablelist:
-                output += ET.tostring(variable.find('term/parameter'), 'utf8', 'text').decode() + " :\n";
+                output += ET.tostring(variable.find('term/parameter'), 'utf8', 'html').decode() + " :\n";
                 for para in variable.findall('listitem/para'):
                     # TODO: parse table
-                    output += "   " + re.sub("<.*?>", "", re.sub("<row>", "\n", re.sub("\s\s+", " ", ET.tostring(para, 'utf8', 'html').decode()))) + "\n";
+                    output += "   " +re.sub("<row>", "\n", re.sub("\s\s+", " ", ET.tostring(para, 'utf8', 'html').decode())) + "\n";
                 output += "\n";
             output += "\n";
 
             returnvalues = root.findall('refsect1[@role="returnvalues"]/para');
             for para in returnvalues:
-                output += re.sub("\s\s+", " ", ET.tostring(para, 'utf8', 'text').decode()).strip() + "\n";
+                output += re.sub("\s\s+", " ", ET.tostring(para, 'utf8', 'html').decode()).strip() + "\n";
 
             docphp_languages[language]["definition"][symbol] = output;
         return docphp_languages[language]["definition"][symbol];
@@ -199,67 +199,24 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
             return;
 
         if getSetting('use_panel') == False:
-            sublime.message_dialog(symbolDescription);
+            output = re.sub('\n', '<br>\n', symbolDescription);
+            output = re.sub('<parameter>', '<parameter style="color:#369;font-weight:900"><b>', output)
+            output = re.sub('</parameter>', '</b></parameter>', output)
+            output = re.sub('<type>', '<type style="color:#369">', output)
+            view.show_popup(output, location = -1,
+                    max_width = 640, max_height = 480,
+                    on_navigate = None, on_hide = None)
+            return;
         else:
-
+            output = re.sub('<.*?>', '', symbolDescription);
             name = 'docphp';
 
             panel = window.get_output_panel(name);
             window.run_command("show_panel", {"panel": "output."+name})
             panel.set_read_only(False)
-            panel.insert(edit, panel.size(), symbolDescription + '\n')
+            panel.insert(edit, panel.size(), output + '\n')
             panel.set_read_only(True)
 
-
-
-            def selectLanguage():
-                languages = {};
-                for path in glob.glob(getDocphpPath() + 'language/*'):
-                    match = re.search('docphp/language.([a-zA-Z]{2}(_[a-zA-Z]{2}){0,1})$', path);
-                    if match:
-                        languages[match.group(1)] = path;
-
-                languageList = list(languages);
-
-                def updateLanguage(index):
-                    if language == -1:
-                        return;
-                    languageName = languageList[index];
-                    languagePath = languages[languageName];
-
-                    def checkoutLanguage():
-                        sublime.status_message('checking out ' + languageName);
-
-                        p = runCmd('svn', ['checkout', 'http://svn.php.net/repository/phpdoc/' + languageName + '/trunk', 'phpdoc_svn'], languagePath);
-                        out, err = p.communicate();
-                        if p.returncode == 0:
-                            if os.path.isdir(languagePath + '/phpdoc'):
-                                shutil.rmtree(languagePath + '/phpdoc');
-
-                            os.rename(languagePath + '/phpdoc_svn', languagePath + '/phpdoc');
-                            sublime.message_dialog('Language ' + languageName + ' is checked out');
-                        else:
-                            if getSetting('debug'):
-                                print(out);
-                                print(err);
-                            shutil.rmtree(languagePath + '/phpdoc_svn');
-
-                    sublime.set_timeout_async(checkoutLanguage, 0);
-
-                currentView.window().show_quick_panel(languageList, updateLanguage);
-
-
-
-            def initLanguage():
-                docphpPath = getDocphpPath();
-                p = runCmd('svn', ['checkout', 'http://svn.php.net/repository/phpdoc', 'language_svn', '--depth=immediates'], docphpPath);
-                out, err = p.communicate();
-                if p.returncode == 0:
-                    os.rename(docphpPath + 'language_svn', docphpPath + 'language');
-                    selectLanguage();
-                else:
-                    print(out);
-                    shutil.rmtree(getDocphpPath() + 'language_svn')
 
 
 def selectLanguage():
