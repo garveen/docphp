@@ -10,10 +10,14 @@ docphp_languages = {};
 entities = {};
 currentView = False;
 currentSettings = sublime.load_settings('docphp.sublime-settings');
+sublime.save_settings('docphp.sublime-settings');
+
 language = '';
 
 def getSetting( key ):
     global currentView, currentSettings;
+    print(currentView.settings().get('docphp.svn_bin'))
+
     local = 'docphp.' + key
     return currentView.settings().get( local, currentSettings.get( key, 'not found' ) )
 
@@ -291,9 +295,8 @@ def runCmd(binType, params, cwd = None):
 class DocphpCheckoutLanguageCommand(sublime_plugin.TextCommand):
     def run(self, edit):
         view = self.view;
-        global currentView, currentSettings;
+        global currentView;
         currentView = view;
-        currentSettings = sublime.load_settings('docphp.sublime-settings');
 
         svn_bin = getSetting('svn_bin');
 
