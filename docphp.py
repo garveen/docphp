@@ -118,7 +118,15 @@ def getSymbolDescription(symbol):
                 xml = f.read(10485760);
             xml = re.sub(' xmlns="[^"]+"', '', xml, 1);
             xml = decodeEntity(xml);
-            root = ET.fromstring(xml);
+            xml = re.sub(' xlink:href="[^"]+"', '', xml);
+            try:
+                root = ET.fromstring(xml);
+            except ET.ParseError as e:
+                if getSetting('debug'):
+                    print(xml);
+                    raise e;
+                sublime.error_message('Cannot read definition of ' + symbol + ', please report this issue on github');
+                return False;
             output = '';
 
             refsect1 = root.find('refsect1[@role="description"]');
@@ -151,7 +159,7 @@ def getSymbolDescription(symbol):
             # output += root.find('refnamediv/refpurpose').text.strip() + "\n\n";
 
             for para in refsect1.findall('para'):
-                output += "   " + re.sub("<.*?>", "", re.sub("<row>", "\n", re.sub("\s\s+", " ", ET.tostring(para, 'utf8', 'html').decode()))) + "\n";
+                output += "   " + re.sub("<.*?>", "", re.sub("<row>([\s\S]*?)</row>", "\\1<br>", re.sub("\s\s+", " ", ET.tostring(para, 'utf8', 'html').decode()))) + "\n";
 
             output += "\n";
 
@@ -160,7 +168,7 @@ def getSymbolDescription(symbol):
                 output += ET.tostring(variable.find('term/parameter'), 'utf8', 'html').decode() + " :\n";
                 for para in variable.findall('listitem/para'):
                     # TODO: parse table
-                    output += "   " +re.sub("<row>", "\n", re.sub("\s\s+", " ", ET.tostring(para, 'utf8', 'html').decode())) + "\n";
+                    output += "   " +re.sub("<row>([\s\S]*?)</row>", "\\1<br>", re.sub("\s\s+", " ", ET.tostring(para, 'utf8', 'html').decode())) + "\n";
                 output += "\n";
             output += "\n";
 
@@ -206,6 +214,8 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
             output = re.sub('<parameter>', '<parameter style="color:#369;font-weight:900"><b>', output)
             output = re.sub('</parameter>', '</b></parameter>', output)
             output = re.sub('<type>', '<type style="color:#369">', output)
+            if getSetting('debug'):
+                print(output)
             view.show_popup(output, location = -1,
                     max_width = 640, max_height = 480,
                     on_navigate = None, on_hide = None)
