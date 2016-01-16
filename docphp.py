@@ -22,6 +22,8 @@ openfiles = {}
 
 language = ''
 
+downloading = False
+
 
 def plugin_loaded():
     global currentSettings
@@ -396,6 +398,10 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
 
 
 def installLanguagePopup(languageName=None, use_svn=False, set_fallback=False):
+    global downloading
+    if downloading:
+        sublime.message_dialog('Another progress is working for checkout ' + languageName + '. Please try again later.')
+        return
     languages = sublime.decode_value(sublime.load_resource('Packages/docphp/languages.json'))
     languages = [(k, languages[k]) for k in sorted(languages.keys())]
 
@@ -416,9 +422,11 @@ def installLanguagePopup(languageName=None, use_svn=False, set_fallback=False):
         def checkoutLanguage():
             if use_svn:
                 sublime.status_message('checking out ' + languageName)
-
+                global downloading
+                downloading = languageName
                 p = runCmd('svn', ['checkout', 'http://svn.php.net/repository/phpdoc/' + languageName + '/trunk', 'phpdoc_svn'], languagePath)
                 out, err = p.communicate()
+                downloading = False
                 if p.returncode == 0:
                     if os.path.isdir(languagePath + '/phpdoc'):
                         shutil.rmtree(languagePath + '/phpdoc')
@@ -479,6 +487,8 @@ def downloadLanguageGZ(name):
         readsofar = 0
         chunksize = 8192
         try:
+            global downloading
+            downloading = name
             while(True):
                 # download chunk
                 data = response.read(chunksize)
@@ -495,6 +505,7 @@ def downloadLanguageGZ(name):
                     sublime.status_message('%.0f KB checking out %s' % (kb, name,))
         finally:
             outputfile.close()
+            downloading = False
         if readsofar != totalsize:
             return False
         else:
