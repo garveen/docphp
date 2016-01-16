@@ -8,7 +8,7 @@ show the document of current function on Sublime Text
 
 ### Usage
 
-You should have subversion installed on your machine. SVN is used for checkout the official document.
+This package will automatically download the Engish language pack after installed. If you want you use a language other than English, please follow suggestions blow:
 
 First, use the `checkout language` command for which you are using, and this will take a few minutes depends on your Internet connection. Then when you pointed to a function name, press `ctrl + alt + d`, and see what's happening!
 
@@ -21,12 +21,20 @@ DocPHPManualer will generate cache files, which usually located at SUBLIME_PATH/
 ```json
 {
 	"debug": false,
-	"language": "en",
+	"language": false,
+	"language_fallback": false,
+	"languages": {},
+	"popup_max_height": 480,
+	"popup_max_width": 640,
 	"prompt_when_not_found": true,
 	"svn_bin": "svn",
 	"use_panel": false
 }
 ```
+
+##### Note:
+
+`svn_bin` is used when a language pack's download is failed.
 
 ### Commands
 
