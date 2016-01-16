@@ -19,6 +19,7 @@ entities = {}
 currentView = False
 currentSettings = None
 openfiles = {}
+isoEntities = {}
 
 language = ''
 
@@ -26,13 +27,19 @@ downloading = False
 
 
 def plugin_loaded():
-    global currentSettings
+    global currentSettings, language
     currentSettings = sublime.load_settings('docphp.sublime-settings')
-    if not currentSettings.get('language'):
+    language = currentSettings.get('language')
+    if not language:
         docphpPath = getDocphpPath()
         if not os.path.isdir(docphpPath + 'language'):
             os.makedirs(docphpPath + 'language')
         installLanguagePopup(languageName='en', use_svn=False, set_fallback=True)
+    else:
+        tarGzPath = getTarGzPath()
+        tar = tarfile.open(tarGzPath)
+        openfiles[tarGzPath] = tar
+        sublime.set_timeout_async(tar.getmembers, 0)
 
 
 def plugin_unloaded():
@@ -79,6 +86,21 @@ def isSvn():
         return
 
 
+def getLanguageList(languageName=None):
+    languages = sublime.decode_value(sublime.load_resource('Packages/docphp/languages.json'))
+    languages = [(k, languages[k]) for k in sorted(languages.keys())]
+
+    languageNameList = []
+    languageList = []
+    for k, v in languages:
+        if k == languageName:
+            index = len(languageList)
+        languageNameList.append(k)
+        languageList.append(k + ' ' + v['name'] + ' (' + v['nativeName'] + ')')
+
+    return languageNameList, languageList
+
+
 def generateEntities():
     global entities
 
@@ -96,17 +118,17 @@ def generateEntities():
     entities[language] = getJsonOrGenerate('entities', generate)
 
 
-def parseEntity(match):
-    entity = match.group(1)
-    if entity not in entities[language]:
-        return " <b>" + entity.upper() + "</b> "
-    else:
-        return entities[language][entity]
-
-
 def decodeEntity(xml):
     if language not in entities:
         generateEntities()
+
+    def parseEntity(match):
+        entity = match.group(1)
+        if entity not in entities[language]:
+            return " <b>" + entity.upper() + "</b> "
+        else:
+            return entities[language][entity]
+
     i = 10
     while i:
         i -= 1
@@ -115,6 +137,31 @@ def decodeEntity(xml):
             break
         else:
             xml = newxml
+    return xml
+
+
+def decodeIsoEntity(xml):
+    global isoEntities
+    if not isinstance(xml, str):
+        print(xml)
+        return xml
+    if isoEntities:
+        forward, reverse = isoEntities
+    else:
+        forward = sublime.decode_value(sublime.load_resource('Packages/docphp/IsoEntities.json'))
+        reverse = dict((v, k) for k, v in forward.items())
+        isoEntities = (forward, reverse)
+
+    def parseEntity(match):
+        entity = match.group(1)
+        try:
+            if entity.isdigit():
+                return reverse[int(entity)]
+            else:
+                return chr(forward[entity])
+        except:
+            return match.group(0)
+    xml = re.sub('&([a-zA-Z0-9]+);', parseEntity, xml)
     return xml
 
 
@@ -141,16 +188,21 @@ def loadLanguage():
         if not os.path.isfile(getTarGzPath()):
             return False
 
+        tarGzPath = getTarGzPath()
+        try:
+            tar = openfiles[tarGzPath]
+        except KeyError:
+            tar = tarfile.open(tarGzPath)
+            openfiles[tarGzPath] = tar
+        tar.getmembers()
+
         def generate():
             symbols = {}
-            tarGzPath = getTarGzPath()
 
-            with tarfile.open(tarGzPath) as tar:
-
-                for tarinfo in tar:
-                    m = re.search('^php-chunked-xhtml/(.*)\.html$', tarinfo.name)
-                    if m:
-                        symbols[m.group(1)] = m.group(0)
+            for tarinfo in tar:
+                m = re.search('^php-chunked-xhtml/(.*)\.html$', tarinfo.name)
+                if m:
+                    symbols[m.group(1)] = m.group(0)
             return symbols
 
         symbols = getJsonOrGenerate('packed_symbols', generate)
@@ -310,6 +362,7 @@ def getSymbolDescription(symbol, only_function=True, use_language=False, fallbac
                 for para in returnvalues:
                     output += re.sub("\s\s+", " ", ET.tostring(para, 'utf8', 'html').decode()).strip() + "\n"
 
+            output = decodeIsoEntity(output)
             docphp_languages[language]["definition"][symbol] = output
         return symbol, docphp_languages[language]["definition"][symbol]
 
@@ -382,9 +435,11 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
                 symbol, content = getSymbolDescription(symbol, only_function=False)[:65535]
                 view.update_popup(content)
             width, height = view.viewport_extent()
-            view.show_popup(output, location=-1,
-                            max_width=min(getSetting('popup_max_width'), width), max_height=min(getSetting('popup_max_height'), height),
-                            on_navigate=on_navigate, on_hide=on_hide)
+
+            view.show_popup(output, location=-1, max_width=min(getSetting('popup_max_width'), width),
+                            max_height=min(getSetting('popup_max_height'), height), on_navigate=on_navigate,
+                            on_hide=on_hide)
+
             return
         else:
             output = re.sub('<.*?>', '', symbolDescription)
@@ -400,18 +455,9 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
 def installLanguagePopup(languageName=None, use_svn=False, set_fallback=False):
     global downloading
     if downloading:
-        sublime.message_dialog('Another progress is working for checkout ' + languageName + '. Please try again later.')
+        sublime.message_dialog('Another progress is working for checkout ' + downloading + '. Please try again later.')
         return
-    languages = sublime.decode_value(sublime.load_resource('Packages/docphp/languages.json'))
-    languages = [(k, languages[k]) for k in sorted(languages.keys())]
-
-    languageNameList = []
-    languageList = []
-    for k, v in languages:
-        if k == languageName:
-            index = len(languageList)
-        languageNameList.append(k)
-        languageList.append(k + ' ' + v['name'] + ' (' + v['nativeName'] + ')')
+    languageNameList, languageList = getLanguageList(languageName)
 
     def updateLanguage(index=None):
         if index == -1:
@@ -457,6 +503,8 @@ def installLanguagePopup(languageName=None, use_svn=False, set_fallback=False):
             setSetting('languages', languageSettings)
             if set_fallback:
                 setSetting('language_fallback', languageName)
+
+            loadLanguage()
 
             sublime.message_dialog('Language ' + languageName + ' is checked out')
 
@@ -581,20 +629,25 @@ class DocphpCheckoutLanguageCommand(sublime_plugin.TextCommand):
 class DocphpSelectLanguageCommand(sublime_plugin.TextCommand):
 
     def run(self, edit):
-        global currentView, language
+        global currentView
         view = self.view
         currentView = view
 
-        languages = []
-        for path in glob.glob(getDocphpPath() + 'language/*'):
-            match = re.search('docphp/language.([a-zA-Z]{2}(_[a-zA-Z]{2}){0,1})$', path)
-            if match:
-                if os.path.isdir(path + '/phpdoc'):
-                    languages.append(match.group(1))
+        languageNameListAll, languageListAll = getLanguageList()
+        availableLanguages = getSetting('languages')
+        languageNameList = []
+        languageList = []
+
+        for k in availableLanguages:
+            index = languageNameListAll.index(k)
+            languageNameList.append(languageNameListAll[index])
+            languageList.append(languageListAll[index])
 
         def selectLanguageCallback(index):
+            global language
             if index != -1:
-                language = languages[index]
+                language = languageNameList[index]
                 setSetting('language', language)
+                sublime.set_timeout_async(loadLanguage, 0)
 
-        currentView.window().show_quick_panel(languages, selectLanguageCallback)
+        currentView.window().show_quick_panel(languageList, selectLanguageCallback)
