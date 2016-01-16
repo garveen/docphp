@@ -247,7 +247,7 @@ def getJsonOrGenerate(name, callback):
     return content
 
 
-def getSymbolDescription(symbol, only_function=True, use_language=False, fallback=False):
+def getSymbolDescription(symbol, use_language=False, fallback=False):
     if use_language:
         language = use_language
     else:
@@ -256,115 +256,132 @@ def getSymbolDescription(symbol, only_function=True, use_language=False, fallbac
     if language not in docphp_languages and not loadLanguage():
         sublime.error_message('The language "' + language + '" not installed\nYou can use\n\n   docphp: checkout language\n\nto checkout a language pack')
         return None, False
-    if only_function and not isSvn():
-        symbol = 'function.' + symbol
-    if symbol not in docphp_languages[language]["symbolList"]:
+
+    symbol = symbol.lower()
+    symbolList = docphp_languages[language]["symbolList"]
+    if not isSvn():
+        if not fallback:
+            for prefix in ['function.', 'class.']:
+                if prefix + symbol in symbolList:
+                    symbol = prefix + symbol
+                    break
+
+    if symbol not in symbolList:
         if not fallback and getSetting('language_fallback'):
-            return getSymbolDescription(symbol, only_function, getSetting('language_fallback'), True)
+            return getSymbolDescription(symbol, getSetting('language_fallback'), True)
         else:
             return None, None
     else:
 
         if symbol not in docphp_languages[language]["definition"]:
-            if not isSvn():
-
-                tarPath = getTarGzPath()
-                try:
-                    tar = openfiles[tarPath]
-                except KeyError:
-                    tar = tarfile.open(getTarGzPath())
-                    openfiles[tarPath] = tar
-                member = tar.getmember(docphp_languages[language]["symbolList"][symbol])
-                f = tar.extractfile(member)
-                output = f.read().decode(errors='ignore')
-
-                output = re.sub('[\s\S]+?(<div[^<>]+?id="'+re.escape(symbol)+'"[\s\S]+?)<div[^<>]+?class="manualnavbar[\s\S]+', '\\1', output)
-                dic = {
-                    '&mdash;': '--',
-                    '&quot;': "'",
-                    '<br>': '',
-                    '&#039;': "'",
-                    '&$': "&amp;",
-                    '&raquo;': '>>',
-                }
-                pattern = "|".join(map(re.escape, dic.keys()))
-
-                output = re.sub(pattern, lambda m: dic[m.group()], output)
-                output = re.sub('(<h[1-6][^<>]*>)([^<>]*)(</h[1-6][^<>]*>)', '\\1<a href="http://php.net/manual/' +
-                                language+'/'+symbol+'.php">\\2</a><br>\\3<a href="history.back">back</a>', output, count=1)
-
-                output = '<style>#container{margin:10px}</style><div id="container">' + output + "</div>"
-
+            if isSvn():
+                output = getSymbolFromXml(symbol)
             else:
-
-                defFile = docphp_languages[language]["symbolList"][symbol]
-
-                with open(getI18nSvnPath() + defFile, 'r', encoding='utf8') as f:
-                    xml = f.read(10485760)
-                xml = re.sub(' xmlns="[^"]+"', '', xml, 1)
-                xml = decodeEntity(xml)
-                xml = re.sub(' xlink:href="[^"]+"', '', xml)
-                try:
-                    root = ET.fromstring(xml)
-                except ET.ParseError as e:
-                    if getSetting('debug'):
-                        print(xml)
-                        raise e
-                    sublime.error_message('Cannot read definition of ' + symbol + ', please report this issue on github')
-                    return None, False
-                output = ''
-
-                refsect1 = root.find('refsect1[@role="description"]')
-                if not refsect1:
-                    refsect1 = root.find('refsect1')
-
-                methodsynopsis = refsect1.find('methodsynopsis')
-
-                if not methodsynopsis:
-                    methodsynopsis = root.find('refsect1/methodsynopsis')
-
-                output += '<type>' + methodsynopsis.find('type').text + '</type> <b style="color:#369">' + symbol + "</b> ("
-                hasPrviousParam = False
-                for methodparam in methodsynopsis.findall('methodparam'):
-
-                    output += ' '
-                    attrib = methodparam.attrib
-                    opt = False
-                    if "choice" in attrib and attrib['choice'] == 'opt':
-                        opt = True
-                        output += "["
-                    if hasPrviousParam:
-                        output += ", "
-                    output += '<type>' + methodparam.find('type').text + "</type> $" + methodparam.find('parameter').text
-                    if opt:
-                        output += "]"
-                    hasPrviousParam = True
-                output += " )\n"
-
-                # output += root.find('refnamediv/refpurpose').text.strip() + "\n\n";
-
-                for para in refsect1.findall('para'):
-                    output += "   " + \
-                        re.sub("<.*?>", "", re.sub("<row>([\s\S]*?)</row>", "\\1<br>", re.sub("\s\s+", " ", ET.tostring(para, 'utf8', 'html').decode()))) + "\n"
-
-                output += "\n"
-
-                variablelist = root.findall('refsect1[@role="parameters"]/para/variablelist/varlistentry')
-                for variable in variablelist:
-                    output += ET.tostring(variable.find('term/parameter'), 'utf8', 'html').decode() + " :\n"
-                    for para in variable.findall('listitem/para'):
-                        # TODO: parse table
-                        output += "   " + re.sub("<row>([\s\S]*?)</row>", "\\1<br>", re.sub("\s\s+", " ", ET.tostring(para, 'utf8', 'html').decode())) + "\n"
-                    output += "\n"
-                output += "\n"
-
-                returnvalues = root.findall('refsect1[@role="returnvalues"]/para')
-                for para in returnvalues:
-                    output += re.sub("\s\s+", " ", ET.tostring(para, 'utf8', 'html').decode()).strip() + "\n"
+                output = getSymbolFromHtml(symbol)
 
             output = decodeIsoEntity(output)
             docphp_languages[language]["definition"][symbol] = output
         return symbol, docphp_languages[language]["definition"][symbol]
+
+
+def getSymbolFromHtml(symbol):
+
+    tarPath = getTarGzPath()
+    try:
+        tar = openfiles[tarPath]
+    except KeyError:
+        tar = tarfile.open(getTarGzPath())
+        openfiles[tarPath] = tar
+    member = tar.getmember(docphp_languages[language]["symbolList"][symbol])
+    f = tar.extractfile(member)
+    output = f.read().decode(errors='ignore')
+
+    output = re.sub('[\s\S]+?(<div[^<>]+?id="'+re.escape(symbol)+'"[\s\S]+?)<div[^<>]+?class="manualnavbar[\s\S]+', '\\1', output)
+    dic = {
+        '&mdash;': '--',
+        '&quot;': "'",
+        '<br>': '',
+        '&#039;': "'",
+        '&$': "&amp;",
+        '&raquo;': '>>',
+    }
+    pattern = "|".join(map(re.escape, dic.keys()))
+
+    output = re.sub(pattern, lambda m: dic[m.group()], output)
+    output = re.sub('(<h[1-6][^<>]*>)([^<>]*)(</h[1-6][^<>]*>)', '\\1<a href="http://php.net/manual/' +
+                    language+'/'+symbol+'.php">\\2</a><br>\\3<a href="history.back">back</a>', output, count=1)
+
+    output = '<style>#container{margin:10px}</style><div id="container">' + output + "</div>"
+    return output
+
+
+def getSymbolFromXml(symbol):
+
+    defFile = docphp_languages[language]["symbolList"][symbol]
+
+    with open(getI18nSvnPath() + defFile, 'r', encoding='utf8') as f:
+        xml = f.read(10485760)
+    xml = re.sub(' xmlns="[^"]+"', '', xml, 1)
+    xml = decodeEntity(xml)
+    xml = re.sub(' xlink:href="[^"]+"', '', xml)
+    try:
+        root = ET.fromstring(xml)
+    except ET.ParseError as e:
+        if getSetting('debug'):
+            print(xml)
+            raise e
+        sublime.error_message('Cannot read definition of ' + symbol + ', please report this issue on github')
+        return None, False
+    output = ''
+
+    refsect1 = root.find('refsect1[@role="description"]')
+    if not refsect1:
+        refsect1 = root.find('refsect1')
+
+    methodsynopsis = refsect1.find('methodsynopsis')
+
+    if not methodsynopsis:
+        methodsynopsis = root.find('refsect1/methodsynopsis')
+
+    output += '<type>' + methodsynopsis.find('type').text + '</type> <b style="color:#369">' + symbol + "</b> ("
+    hasPrviousParam = False
+    for methodparam in methodsynopsis.findall('methodparam'):
+
+        output += ' '
+        attrib = methodparam.attrib
+        opt = False
+        if "choice" in attrib and attrib['choice'] == 'opt':
+            opt = True
+            output += "["
+        if hasPrviousParam:
+            output += ", "
+        output += '<type>' + methodparam.find('type').text + "</type> $" + methodparam.find('parameter').text
+        if opt:
+            output += "]"
+        hasPrviousParam = True
+    output += " )\n"
+
+    # output += root.find('refnamediv/refpurpose').text.strip() + "\n\n";
+
+    for para in refsect1.findall('para'):
+        output += "   " + \
+            re.sub("<.*?>", "", re.sub("<row>([\s\S]*?)</row>", "\\1<br>", re.sub("\s\s+", " ", ET.tostring(para, 'utf8', 'html').decode()))) + "\n"
+
+    output += "\n"
+
+    variablelist = root.findall('refsect1[@role="parameters"]/para/variablelist/varlistentry')
+    for variable in variablelist:
+        output += ET.tostring(variable.find('term/parameter'), 'utf8', 'html').decode() + " :\n"
+        for para in variable.findall('listitem/para'):
+            # TODO: parse table
+            output += "   " + re.sub("<row>([\s\S]*?)</row>", "\\1<br>", re.sub("\s\s+", " ", ET.tostring(para, 'utf8', 'html').decode())) + "\n"
+        output += "\n"
+    output += "\n"
+
+    returnvalues = root.findall('refsect1[@role="returnvalues"]/para')
+    for para in returnvalues:
+        output += re.sub("\s\s+", " ", ET.tostring(para, 'utf8', 'html').decode()).strip() + "\n"
+    return output
 
 
 class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
@@ -382,13 +399,10 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
         selection = view.sel()
         if not re.search('source\.php', view.scope_name(selection[0].a)):
             return
-        selectionBackup = list(selection)
 
-        view.run_command('expand_selection', {"to": "word"})
+        region = view.word(selection[0])
 
-        symbol = view.substr(selection[0]).replace('_', '-')
-        selection.clear()
-        selection.add_all(selectionBackup)
+        symbol = view.substr(region).replace('_', '-')
 
         # symbol = 'basename'
 
@@ -432,7 +446,7 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
 
                 # It seems sublime will core when the output is too long
                 # In some cases the value can set to 76200, but we use a 65535 for safety.
-                symbol, content = getSymbolDescription(symbol, only_function=False)[:65535]
+                symbol, content = getSymbolDescription(symbol)[:65535]
                 view.update_popup(content)
             width, height = view.viewport_extent()
 
