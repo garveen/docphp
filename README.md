@@ -2,9 +2,7 @@
 
 show the document of current function on Sublime Text
 
-![popup](/screenshots/1.png?raw=true "Document in popup")
-
-![panel](/screenshots/2.png?raw=true "Document in panel")
+![popup](https://raw.github.com/acabin/docphp/screenshots/screenshots/popup.png "Document in popup")
 
 ### Usage
 
