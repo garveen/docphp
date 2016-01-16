@@ -18,14 +18,35 @@ DocPHPManualer will generate cache files, which usually located at SUBLIME_PATH/
 
 ```json
 {
+	// Show manual automatically
+	"auto": false,
+
+	// Delay after cursor finish moving, in microseconds
+	"auto_delay": 500,
+
+	// Debug mode
 	"debug": false,
+
+	// Select language
 	"language": false,
+
+	// Select fallback language
 	"language_fallback": false,
+
+	// Available languages
 	"languages": {},
+
+	// Max height and width of popup
 	"popup_max_height": 480,
 	"popup_max_width": 640,
+
+	// Prompt "not found" when symbol not found
 	"prompt_when_not_found": true,
+
+	// In rare condiction the program may fallback to svn
 	"svn_bin": "svn",
+
+	// Use the panel on the bottom instead of popup
 	"use_panel": false
 }
 ```

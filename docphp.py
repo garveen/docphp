@@ -10,6 +10,7 @@ import urllib.request
 import io
 import tarfile
 import webbrowser
+import time
 
 from urllib.request import urlopen
 
@@ -25,11 +26,16 @@ language = ''
 
 downloading = False
 
+# for auto show
+prevTime = 0
+delayTime = 0
+
 
 def plugin_loaded():
-    global currentSettings, language
+    global currentSettings, language, delayTime
     currentSettings = sublime.load_settings('docphp.sublime-settings')
     language = currentSettings.get('language')
+    delayTime = getSetting('auto_delay')
     if not language:
         docphpPath = getDocphpPath()
         if not os.path.isdir(docphpPath + 'language'):
@@ -409,7 +415,7 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
         symbol, symbolDescription = getSymbolDescription(symbol)
         if symbolDescription == None:
             if getSetting('prompt_when_not_found'):
-                view.show_popup('not found')
+                view.show_popup('not found', sublime.COOPERATE_WITH_AUTO_COMPLETE)
             return
         if symbolDescription == False:
             return
@@ -450,7 +456,7 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
                 view.update_popup(content)
             width, height = view.viewport_extent()
 
-            view.show_popup(output, location=-1, max_width=min(getSetting('popup_max_width'), width),
+            view.show_popup(output, flags=sublime.COOPERATE_WITH_AUTO_COMPLETE | sublime.HTML, location=-1, max_width=min(getSetting('popup_max_width'), width),
                             max_height=min(getSetting('popup_max_height'), height), on_navigate=on_navigate,
                             on_hide=on_hide)
 
@@ -665,3 +671,23 @@ class DocphpSelectLanguageCommand(sublime_plugin.TextCommand):
                 sublime.set_timeout_async(loadLanguage, 0)
 
         currentView.window().show_quick_panel(languageList, selectLanguageCallback)
+
+
+def doAutoShow():
+    if (time.time() - prevTime) * 1000 > delayTime:
+        if not currentView.is_popup_visible():
+            currentView.run_command('docphp_show_definition')
+
+
+class DocPHPListener(sublime_plugin.EventListener):
+
+    def on_activated(self, view):
+        global currentView
+        currentView = view
+
+    def on_selection_modified_async(self, view):
+        global prevTime
+        if not getSetting('auto'):
+            return
+        prevTime = time.time()
+        sublime.set_timeout_async(doAutoShow, delayTime + 50)
