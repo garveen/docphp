@@ -2,7 +2,7 @@
 
 show the document of current function on Sublime Text
 
-![popup](https://raw.github.com/acabin/docphp/screenshots/screenshots/popup.png "Document in popup")
+<img src="https://raw.github.com/acabin/docphp/screenshots/screenshots/popup.png" alt="Popup manual" width="956">
 
 ### Usage
 
