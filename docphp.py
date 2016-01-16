@@ -11,10 +11,14 @@ import io
 import tarfile
 import webbrowser
 
+from urllib.request import urlopen
+
+
 docphp_languages = {}
 entities = {}
 currentView = False
 currentSettings = None
+openfiles = {}
 
 language = ''
 
@@ -26,6 +30,12 @@ def plugin_loaded():
 
 
 def plugin_unloaded():
+    try:
+        for k in openfiles:
+            openfiles[k].close()
+    except Exception as e:
+        if getSetting('debug'):
+            print(e)
     sublime.save_settings('docphp.sublime-settings')
 
 
@@ -170,39 +180,33 @@ def getSymbolDescription(symbol, only_function=True):
 
         if symbol not in docphp_languages[language]["definition"]:
             if not getSetting('use_svn'):
-                output = ''
-                path = getI18nCachePath() + 'php-chunked-xhtml/'
-                filename = path + symbol + '.html'
-                if os.path.isfile(filename):
-                    with open(filename, 'r', encoding='utf8', errors='ignore') as f:
-                        output = f.read()
-                else:
 
-                    with tarfile.open(getTarGzPath()) as tar:
-                        member = tar.getmember(docphp_languages[language]["symbolList"][symbol])
-                        f = tar.extractfile(member)
-                        output = f.read().decode(errors='ignore')
-                        output = re.sub('[\s\S]+?(<div[^<>]+?id="'+re.escape(symbol)+'"[\s\S]+?)<div[^<>]+?class="manualnavbar[\s\S]+', '\\1', output)
-                        dic = {
-                            '&mdash;': '--',
-                            '&quot;': "'",
-                            '<br>': '',
-                            '&#039;': "'",
-                            '&$': "&amp;",
-                            '&raquo;': '>>',
-                        }
-                        pattern = "|".join(map(re.escape, dic.keys()))
+                tarPath = getTarGzPath()
+                try:
+                    tar = openfiles[tarPath]
+                except KeyError:
+                    tar = tarfile.open(getTarGzPath())
+                    openfiles[tarPath] = tar
+                member = tar.getmember(docphp_languages[language]["symbolList"][symbol])
+                f = tar.extractfile(member)
+                output = f.read().decode(errors='ignore')
 
-                        output = re.sub(pattern, lambda m: dic[m.group()], output)
-                        output = re.sub('(<h[1-6][^<>]*>)([^<>]*)(</h[1-6][^<>]*>)', '\\1<a href="http://php.net/manual/' +
-                                        language+'/'+symbol+'.php">\\2</a><br>\\3<a href="history.back">back</a>', output, count=1)
+                output = re.sub('[\s\S]+?(<div[^<>]+?id="'+re.escape(symbol)+'"[\s\S]+?)<div[^<>]+?class="manualnavbar[\s\S]+', '\\1', output)
+                dic = {
+                    '&mdash;': '--',
+                    '&quot;': "'",
+                    '<br>': '',
+                    '&#039;': "'",
+                    '&$': "&amp;",
+                    '&raquo;': '>>',
+                }
+                pattern = "|".join(map(re.escape, dic.keys()))
 
-                        output = '<style>#container{margin:10px}</style><div id="container">' + output + "</div>"
+                output = re.sub(pattern, lambda m: dic[m.group()], output)
+                output = re.sub('(<h[1-6][^<>]*>)([^<>]*)(</h[1-6][^<>]*>)', '\\1<a href="http://php.net/manual/' +
+                                language+'/'+symbol+'.php">\\2</a><br>\\3<a href="history.back">back</a>', output, count=1)
 
-                        if not os.path.isdir(path):
-                            os.makedirs(path)
-                        with open(filename, 'wb') as f:
-                            f.write(output.encode())
+                output = '<style>#container{margin:10px}</style><div id="container">' + output + "</div>"
 
             else:
 
@@ -342,8 +346,9 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
                 # In some cases the value can set to 76200, but we use a 65535 for safety.
                 symbol, content = getSymbolDescription(symbol, only_function=False)[:65535]
                 view.update_popup(content)
+            width, height = view.viewport_extent()
             view.show_popup(output, location=-1,
-                            max_width=getSetting('popup_max_width'), max_height=getSetting('popup_max_height'),
+                            max_width=min(getSetting('popup_max_width'), width), max_height=min(getSetting('popup_max_height'), height),
                             on_navigate=on_navigate, on_hide=on_hide)
             return
         else:
@@ -394,6 +399,7 @@ def installLanguagePopup():
                 if downloadLanguageGZ(languageName):
                     sublime.message_dialog('Language ' + languageName + ' is checked out')
                     selectLanguage(languageName)
+
                 else:
                     if getSetting('debug'):
                         print('download error')
@@ -410,13 +416,51 @@ def downloadLanguageGZ(name):
 
         filename = getDocphpPath() + 'language/php_manual_' + name + '.tar.gz'
 
-        request = urllib.request.Request(url)
-        response = urllib.request.urlopen(request)
+        # print(1)
+        response = urlopen(url)
+        try:
+            totalsize = int(response.headers['Content-Length'])  # assume correct header
+        except NameError:
+            totalsize = None
+        except KeyError:
+            totalsize = None
 
-        gziped = response.read(16777216)
+        outputfile = open(filename, 'wb')
 
-        with open(filename, 'wb') as handle:
-            handle.write(gziped)
+        readsofar = 0
+        chunksize = 8192
+        try:
+            while(True):
+                # download chunk
+                data = response.read(chunksize)
+                if not data:  # finished downloading
+                    break
+                readsofar += len(data)
+                outputfile.write(data)  # save to filename
+                if totalsize:
+                    # report progress
+                    percent = readsofar * 1e2 / totalsize  # assume totalsize > 0
+                    sublime.status_message('%.0f%% checking out %s' % (percent, name,))
+                else:
+                    kb = readsofar / 1024
+                    sublime.status_message('%.0f KB checking out %s' % (kb, name,))
+        finally:
+            outputfile.close()
+        if readsofar != totalsize:
+            return False
+        else:
+            return True
+
+        def reporthook(blocknum, blocksize, totalsize):
+            readsofar = blocknum * blocksize
+            if totalsize > 0:
+                percent = readsofar * 1e2 / totalsize
+                s = "\r%5.1f%% %*d / %d" % (percent, len(str(totalsize)), readsofar, totalsize)
+                status_message(s)
+            else:  # total size is unknown
+                status_message("read %d\n" % (readsofar,))
+
+        urlretrieve(url, filename, reporthook)
 
         return True
 
@@ -475,9 +519,12 @@ class DocphpCheckoutLanguageCommand(sublime_plugin.TextCommand):
 
 
 def selectLanguage(name):
+    global language
+    language = name
     currentSettings.set('language', name)
     sublime.save_settings('docphp.sublime-settings')
-    currentView.settings().set('docphp.language', name)
+    if currentView.settings():
+        currentView.settings().set('docphp.language', name)
 
 
 class DocphpSelectLanguageCommand(sublime_plugin.TextCommand):
