@@ -261,7 +261,7 @@ def getSymbolDescription(symbol, use_language=False, fallback=False):
     symbolList = docphp_languages[language]["symbolList"]
     if not isSvn():
         if not fallback:
-            for prefix in ['function.', 'class.']:
+            for prefix in ['function.', 'book.', 'class.']:
                 if prefix + symbol in symbolList:
                     symbol = prefix + symbol
                     break
