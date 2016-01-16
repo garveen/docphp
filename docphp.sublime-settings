@@ -1,10 +1,11 @@
 {
 	"debug": false,
-	"language": "en",
+	"language": false,
+	"language_fallback": false,
 	"popup_max_height": 480,
 	"popup_max_width": 640,
 	"prompt_when_not_found": true,
 	"svn_bin": "svn",
 	"use_panel": false,
-	"use_svn": false
+	"languages": {}
 }

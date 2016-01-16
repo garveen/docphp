@@ -1,37 +1,46 @@
-[
-    "da",
-    "cs",
-    "de",
-    "sv",
-    "fi",
-    "en",
-    "pl",
-    "el",
-    "sk",
-    "ro",
-    "lt",
-    "fa",
-    "pt_BR",
-    "ca",
-    "sr",
-    "sl",
-    "bg",
-    "es",
-    "ru",
-    "ar",
-    "tw",
-    "fr",
-    "tr",
-    "id",
-    "hk",
-    "pt",
-    "he",
-    "ja",
-    "nl",
-    "no",
-    "zh",
-    "it",
-    "hu",
-    "kr",
-    "uk"
-]
+{
+    "de": {
+        "name": "German",
+        "nativeName": "Deutsch"
+    },
+    "en": {
+        "name": "English",
+        "nativeName": "English"
+    },
+    "es": {
+        "name": "Spanish; Castilian",
+        "nativeName": "español, castellano"
+    },
+    "fr": {
+        "name": "French",
+        "nativeName": "français, langue française"
+    },
+    "ja": {
+        "name": "Japanese",
+        "nativeName": "日本語 (にほんご／にっぽんご)"
+    },
+    "kr": {
+        "name": "Korean",
+        "nativeName": "한국어"
+    },
+    "pt_BR": {
+        "name": "Portuguese Brazil",
+        "nativeName": "Português do Brasil"
+    },
+    "ro": {
+        "name": "Romanian, Moldavian, Moldovan",
+        "nativeName": "română"
+    },
+    "ru": {
+        "name": "Russian",
+        "nativeName": "русский язык"
+    },
+    "tr": {
+        "name": "Turkish",
+        "nativeName": "Türkçe"
+    },
+    "zh": {
+        "name": "Simplified Chinese",
+        "nativeName": "大陆简体"
+    }
+}

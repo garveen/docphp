@@ -26,7 +26,11 @@ language = ''
 def plugin_loaded():
     global currentSettings
     currentSettings = sublime.load_settings('docphp.sublime-settings')
-    sublime.save_settings('docphp.sublime-settings')
+    if not currentSettings.get('language'):
+        docphpPath = getDocphpPath()
+        if not os.path.isdir(docphpPath + 'language'):
+            os.makedirs(docphpPath + 'language')
+        installLanguagePopup(languageName='en', use_svn=False, set_fallback=True)
 
 
 def plugin_unloaded():
@@ -43,11 +47,34 @@ def getSetting(key):
     global currentView, currentSettings
 
     local = 'docphp.' + key
-    settings = currentView.settings()
-    if settings:
-        return settings.get(local, currentSettings.get(key, 'not found'))
-    else:
-        return currentSettings.get(key)
+    if currentView:
+        settings = currentView.settings()
+        if settings:
+            return settings.get(local, currentSettings.get(key))
+
+    return currentSettings.get(key)
+
+
+def setSetting(key, value):
+    global currentView, currentSettings
+
+    local = 'docphp.' + key
+    if currentView:
+        settings = currentView.settings()
+        if settings:
+            settings.set(local, value)
+
+    currentSettings.set(key, value)
+    sublime.save_settings('docphp.sublime-settings')
+
+
+def isSvn():
+    languages = getSetting('languages')
+    try:
+        setting = languages[language]
+        return setting == 'svn'
+    except Exception:
+        return
 
 
 def generateEntities():
@@ -108,7 +135,7 @@ def getI18nSvnPath():
 def loadLanguage():
     global docphp_languages
 
-    if not getSetting('use_svn'):
+    if not isSvn():
         if not os.path.isfile(getTarGzPath()):
             return False
 
@@ -133,23 +160,22 @@ def loadLanguage():
         return False
 
     def generate():
-        functions = {}
+        symbols = {}
         i18nPath = getI18nSvnPath()
         pathLen = len(i18nPath)
         for root, dirnames, filenames in os.walk(i18nPath):
-            if re.search('functions$', root):
-                for xmlFile in filenames:
-                    for name in re.findall('^(.+)\.xml$', xmlFile):
-                        functions[name] = os.path.join(root[pathLen:], xmlFile)
-        return functions
+            for xmlFile in filenames:
+                for name in re.findall('^(.+)\.xml$', xmlFile):
+                    symbols[name] = os.path.join(root[pathLen:], xmlFile)
+        return symbols
 
-    functions = getJsonOrGenerate('functions', generate)
-    docphp_languages[language] = {"symbolList": functions, "definition": {}}
+    symbols = getJsonOrGenerate('packed_symbols', generate)
+    docphp_languages[language] = {"symbolList": symbols, "definition": {}}
     return True
 
 
 def getJsonOrGenerate(name, callback):
-    filename = getI18nSvnPath() + '../' + name + '.json'
+    filename = getI18nCachePath() + name + '.json'
     if os.path.exists(filename):
         with open(filename, 'r', encoding='utf8') as f:
             json = f.read(10485760)
@@ -167,19 +193,26 @@ def getJsonOrGenerate(name, callback):
     return content
 
 
-def getSymbolDescription(symbol, only_function=True):
+def getSymbolDescription(symbol, only_function=True, use_language=False, fallback=False):
+    if use_language:
+        language = use_language
+    else:
+        global language
 
     if language not in docphp_languages and not loadLanguage():
         sublime.error_message('The language "' + language + '" not installed\nYou can use\n\n   docphp: checkout language\n\nto checkout a language pack')
         return None, False
-    if only_function and not getSetting('use_svn'):
+    if only_function and not isSvn():
         symbol = 'function.' + symbol
     if symbol not in docphp_languages[language]["symbolList"]:
-        return None, None
+        if not fallback and getSetting('language_fallback'):
+            return getSymbolDescription(symbol, only_function, getSetting('language_fallback'), True)
+        else:
+            return None, None
     else:
 
         if symbol not in docphp_languages[language]["definition"]:
-            if not getSetting('use_svn'):
+            if not isSvn():
 
                 tarPath = getTarGzPath()
                 try:
@@ -314,7 +347,7 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
 
         if getSetting('use_panel') == False:
             output = symbolDescription
-            if getSetting('use_svn'):
+            if isSvn():
                 output = re.sub('\n', '<br>\n', symbolDescription)
                 output = re.sub('<parameter>', '<parameter style="color:#369;font-weight:900"><b>', output)
                 output = re.sub('</parameter>', '</b></parameter>', output)
@@ -362,22 +395,26 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
             panel.set_read_only(True)
 
 
-def installLanguagePopup():
-    languages = {}
-    for path in glob.glob(getDocphpPath() + 'language/*'):
-        match = re.search('docphp/language.([a-zA-Z]{2}(_[a-zA-Z]{2}){0,1})$', path)
-        if match:
-            languages[match.group(1)] = path
-    languageList = list(languages)
+def installLanguagePopup(languageName=None, use_svn=False, set_fallback=False):
+    languages = sublime.decode_value(sublime.load_resource('Packages/docphp/languages.json'))
+    languages = [(k, languages[k]) for k in sorted(languages.keys())]
 
-    def updateLanguage(index):
+    languageNameList = []
+    languageList = []
+    for k, v in languages:
+        if k == languageName:
+            index = len(languageList)
+        languageNameList.append(k)
+        languageList.append(k + ' ' + v['name'] + ' (' + v['nativeName'] + ')')
+
+    def updateLanguage(index=None):
         if index == -1:
             return
-        languageName = languageList[index]
-        languagePath = languages[languageName]
+        languageName = languageNameList[index]
+        languagePath = getDocphpPath() + 'language/' + languageName
 
         def checkoutLanguage():
-            if getSetting('use_svn'):
+            if use_svn:
                 sublime.status_message('checking out ' + languageName)
 
                 p = runCmd('svn', ['checkout', 'http://svn.php.net/repository/phpdoc/' + languageName + '/trunk', 'phpdoc_svn'], languagePath)
@@ -387,26 +424,39 @@ def installLanguagePopup():
                         shutil.rmtree(languagePath + '/phpdoc')
 
                     os.rename(languagePath + '/phpdoc_svn', languagePath + '/phpdoc')
-                    sublime.message_dialog('Language ' + languageName + ' is checked out')
-                    selectLanguage(languageName)
+
                 else:
                     if getSetting('debug'):
                         print(out)
                         print(err)
                     shutil.rmtree(languagePath + '/phpdoc_svn')
+                    return False
             else:
 
-                if downloadLanguageGZ(languageName):
-                    sublime.message_dialog('Language ' + languageName + ' is checked out')
-                    selectLanguage(languageName)
-
-                else:
+                if not downloadLanguageGZ(languageName):
                     if getSetting('debug'):
                         print('download error')
+                    return False
+
+            setSetting('language', languageName)
+            languageSettings = currentSettings.get('languages')
+
+            if use_svn:
+                languageSettings[languageName] = 'svn'
+            else:
+                languageSettings[languageName] = 'gz'
+
+            setSetting('languages', languageSettings)
+            if set_fallback:
+                setSetting('language_fallback', languageName)
+
+            sublime.message_dialog('Language ' + languageName + ' is checked out')
 
         sublime.set_timeout_async(checkoutLanguage, 0)
-
-    currentView.window().show_quick_panel(languageList, updateLanguage)
+    if languageName:
+        updateLanguage(index)
+    else:
+        currentView.window().show_quick_panel(languageList, updateLanguage)
 
 
 def downloadLanguageGZ(name):
@@ -416,7 +466,6 @@ def downloadLanguageGZ(name):
 
         filename = getDocphpPath() + 'language/php_manual_' + name + '.tar.gz'
 
-        # print(1)
         response = urlopen(url)
         try:
             totalsize = int(response.headers['Content-Length'])  # assume correct header
@@ -467,13 +516,15 @@ def downloadLanguageGZ(name):
     except (urllib.error.HTTPError) as e:
         err = '%s: HTTP error %s contacting API' % (__name__, str(e.code))
         if e.code == 404:
-            sublime.message_dialog('Language ' + name + ' MUST checkout by SVN. Please check your settings.')
+            # fall back to SVN
+            installLanguagePopup(name, use_svn=True)
             return False
 
     except (urllib.error.URLError) as e:
         err = '%s: URL error %s contacting API' % (__name__, str(e.reason))
     except Exception as e:
         err = e.__class__.__name__
+        print(e.args)
 
     sublime.message_dialog('Language ' + name + ' checkout failed. Please try again.')
 
@@ -501,7 +552,7 @@ def runCmd(binType, params, cwd=None):
     except FileNotFoundError:
         message = 'Cannot run ' + binType + ' command, please check your settings.'
         if binType == 'svn':
-            message += '\n\nSVN is needed by DocPHP for checking out language packs.'
+            message += '\n\nSVN is needed by DocPHP for checking out this language pack.'
         sublime.error_message(message)
         return False
 
@@ -512,19 +563,8 @@ class DocphpCheckoutLanguageCommand(sublime_plugin.TextCommand):
         view = self.view
         global currentView
         currentView = view
-        docphpPath = getDocphpPath()
-        if not os.path.isdir(docphpPath):
-            os.makedirs(docphpPath)
+
         installLanguagePopup()
-
-
-def selectLanguage(name):
-    global language
-    language = name
-    currentSettings.set('language', name)
-    sublime.save_settings('docphp.sublime-settings')
-    if currentView.settings():
-        currentView.settings().set('docphp.language', name)
 
 
 class DocphpSelectLanguageCommand(sublime_plugin.TextCommand):
@@ -544,6 +584,6 @@ class DocphpSelectLanguageCommand(sublime_plugin.TextCommand):
         def selectLanguageCallback(index):
             if index != -1:
                 language = languages[index]
-                selectLanguage(language)
+                setSetting('language', language)
 
         currentView.window().show_quick_panel(languages, selectLanguageCallback)
