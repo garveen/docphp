@@ -15,21 +15,21 @@
                             {
                                 "caption": "Settings – Default",
                                 "args": {
-                                    "file": "${packages}/docphp/docphp.sublime-settings"
+                                    "file": "${packages}/DocPHPManualer/DocPHPManualer.sublime-settings"
                                 },
                                 "command": "open_file"
                             },
                             {
                                 "caption": "Settings – User",
                                 "args": {
-                                    "file": "${packages}/User/docphp.sublime-settings"
+                                    "file": "${packages}/User/DocPHPManualer.sublime-settings"
                                 },
                                 "command": "open_file"
                             },
                             {
                                 "caption": "Key Bindings – Default",
                                 "args": {
-                                    "file": "${packages}/docphp/Default.sublime-keymap"
+                                    "file": "${packages}/DocPHPManualer/Default.sublime-keymap"
                                 },
                                 "command": "open_file"
                             },

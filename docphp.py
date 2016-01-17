@@ -14,6 +14,8 @@ import time
 
 from urllib.request import urlopen
 
+package_name = 'DocPHPManualer'
+setting_file = package_name + '.sublime-settings'
 
 docphp_languages = {}
 entities = {}
@@ -33,7 +35,7 @@ delaying = False
 
 def plugin_loaded():
     global currentSettings, language
-    currentSettings = sublime.load_settings('docphp.sublime-settings')
+    currentSettings = sublime.load_settings(setting_file)
     language = currentSettings.get('language')
     if not language:
         docphpPath = getDocphpPath()
@@ -54,7 +56,13 @@ def plugin_unloaded():
     except Exception as e:
         if getSetting('debug'):
             print(e)
-    sublime.save_settings('docphp.sublime-settings')
+    sublime.save_settings(setting_file)
+
+    from package_control import events
+
+    if events.remove(package_name):
+        shutil.rmtree(getDocphpPath())
+
 
 
 def getSetting(key):
@@ -79,7 +87,7 @@ def setSetting(key, value):
             settings.set(local, value)
 
     currentSettings.set(key, value)
-    sublime.save_settings('docphp.sublime-settings')
+    sublime.save_settings(setting_file)
 
 
 def isSvn():
@@ -92,7 +100,7 @@ def isSvn():
 
 
 def getLanguageList(languageName=None):
-    languages = sublime.decode_value(sublime.load_resource('Packages/DocPHPManualer/languages.json'))
+    languages = sublime.decode_value(sublime.load_resource('Packages/' + package_name + '/languages.json'))
     languages = [(k, languages[k]) for k in sorted(languages.keys())]
 
     languageNameList = []
@@ -154,7 +162,7 @@ def decodeIsoEntity(xml):
     if isoEntities:
         forward, reverse = isoEntities
     else:
-        forward = sublime.decode_value(sublime.load_resource('Packages/DocPHPManualer/IsoEntities.json'))
+        forward = sublime.decode_value(sublime.load_resource('Packages/' + package_name + '/IsoEntities.json'))
         reverse = dict((v, k) for k, v in forward.items())
         isoEntities = (forward, reverse)
 
@@ -172,19 +180,19 @@ def decodeIsoEntity(xml):
 
 
 def getDocphpPath():
-    return sublime.cache_path() + '/docphp/'
+    return sublime.cache_path() + '/' + package_name + '/'
 
 
 def getTarGzPath():
-    return sublime.cache_path() + '/docphp/language/php_manual_' + language + '.tar.gz'
+    return getDocphpPath() + 'language/php_manual_' + language + '.tar.gz'
 
 
 def getI18nCachePath():
-    return sublime.cache_path() + '/docphp/language/' + language + '/'
+    return getDocphpPath() + 'language/' + language + '/'
 
 
 def getI18nSvnPath():
-    return sublime.cache_path() + '/docphp/language/' + language + '/phpdoc/'
+    return getDocphpPath() + '/language/' + language + '/phpdoc/'
 
 
 def loadLanguage():
@@ -260,7 +268,7 @@ def getSymbolDescription(symbol, use_language=False, fallback=False):
         global language
 
     if language not in docphp_languages and not loadLanguage():
-        sublime.error_message('The language "' + language + '" not installed\nYou can use\n\n   docphp: checkout language\n\nto checkout a language pack')
+        sublime.error_message('The language "' + language + '" not installed\nYou can use\n\n   DocPHP: checkout language\n\nto checkout a language pack')
         return None, False
 
     symbol = symbol.lower()
@@ -628,7 +636,7 @@ def runCmd(binType, params, cwd=None):
     except FileNotFoundError:
         message = 'Cannot run ' + binType + ' command, please check your settings.'
         if binType == 'svn':
-            message += '\n\nSVN is needed by DocPHP for checking out this language pack.'
+            message += '\n\nSVN is needed by ' + package_name + ' for checking out this language pack.'
         sublime.error_message(message)
         return False
 
