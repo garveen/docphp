@@ -37,16 +37,21 @@ def plugin_loaded():
     global currentSettings, language
     currentSettings = sublime.load_settings(setting_file)
     language = currentSettings.get('language')
+
+    docphpPath = getDocphpPath()
+    if not os.path.isdir(docphpPath + 'language'):
+        os.makedirs(docphpPath + 'language')
+
     if not language:
-        docphpPath = getDocphpPath()
-        if not os.path.isdir(docphpPath + 'language'):
-            os.makedirs(docphpPath + 'language')
         installLanguagePopup(languageName='en', use_svn=False, set_fallback=True)
     else:
-        tarGzPath = getTarGzPath()
-        tar = tarfile.open(tarGzPath)
-        openfiles[tarGzPath] = tar
-        sublime.set_timeout_async(tar.getmembers, 0)
+        try:
+            tarGzPath = getTarGzPath()
+            tar = tarfile.open(tarGzPath)
+            openfiles[tarGzPath] = tar
+            sublime.set_timeout_async(tar.getmembers, 0)
+        except:
+            pass
 
 
 def plugin_unloaded():
