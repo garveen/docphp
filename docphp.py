@@ -276,17 +276,15 @@ def getSymbolDescription(symbol, use_language=False, fallback=False):
             return getSymbolDescription(symbol, getSetting('language_fallback'), True)
         else:
             return None, None
-    else:
+    elif symbol not in docphp_languages[language]["definition"]:
+        if isSvn():
+            output = getSymbolFromXml(symbol)
+        else:
+            output = getSymbolFromHtml(symbol)
 
-        if symbol not in docphp_languages[language]["definition"]:
-            if isSvn():
-                output = getSymbolFromXml(symbol)
-            else:
-                output = getSymbolFromHtml(symbol)
-
-            output = decodeIsoEntity(output)
-            docphp_languages[language]["definition"][symbol] = output
-        return symbol, docphp_languages[language]["definition"][symbol]
+        output = decodeIsoEntity(output)
+        docphp_languages[language]["definition"][symbol] = output
+    return symbol, docphp_languages[language]["definition"][symbol]
 
 
 def getSymbolFromHtml(symbol):
@@ -498,18 +496,15 @@ def installLanguagePopup(languageName=None, use_svn=False, set_fallback=False):
 
                     os.rename(languagePath + '/phpdoc_svn', languagePath + '/phpdoc')
 
-                else:
-                    if getSetting('debug'):
-                        print(out)
-                        print(err)
-                    shutil.rmtree(languagePath + '/phpdoc_svn')
-                    return False
-            else:
-
-                if not downloadLanguageGZ(languageName):
-                    if getSetting('debug'):
-                        print('download error')
-                    return False
+                elif getSetting('debug'):
+                    print(out)
+                    print(err)
+                shutil.rmtree(languagePath + '/phpdoc_svn')
+                return False
+            elif not downloadLanguageGZ(languageName):
+                if getSetting('debug'):
+                    print('download error')
+                return False
 
             setSetting('language', languageName)
             languageSettings = currentSettings.get('languages')
