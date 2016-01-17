@@ -64,7 +64,6 @@ def plugin_unloaded():
         shutil.rmtree(getDocphpPath())
 
 
-
 def getSetting(key):
     global currentView, currentSettings
 
@@ -494,7 +493,7 @@ def installLanguagePopup(languageName=None, use_svn=False, set_fallback=False):
         def checkoutLanguage():
             global language
             if use_svn:
-                sublime.status_message('checking out ' + languageName)
+                sublime.status_message(package_name + ': checking out ' + languageName)
                 global downloading
                 downloading = languageName
                 p = runCmd('svn', ['checkout', 'http://svn.php.net/repository/phpdoc/' + languageName + '/trunk', 'phpdoc_svn'], languagePath)
@@ -572,10 +571,10 @@ def downloadLanguageGZ(name):
                 if totalsize:
                     # report progress
                     percent = readsofar * 1e2 / totalsize  # assume totalsize > 0
-                    sublime.status_message('%.0f%% checking out %s' % (percent, name,))
+                    sublime.status_message(package_name + ': %.0f%% checking out %s' % (percent, name,))
                 else:
                     kb = readsofar / 1024
-                    sublime.status_message('%.0f KB checking out %s' % (kb, name,))
+                    sublime.status_message(package_name + ': %.0f KB checking out %s' % (kb, name,))
         finally:
             outputfile.close()
             downloading = False
@@ -583,19 +582,6 @@ def downloadLanguageGZ(name):
             return False
         else:
             return True
-
-        def reporthook(blocknum, blocksize, totalsize):
-            readsofar = blocknum * blocksize
-            if totalsize > 0:
-                percent = readsofar * 1e2 / totalsize
-                s = "\r%5.1f%% %*d / %d" % (percent, len(str(totalsize)), readsofar, totalsize)
-                status_message(s)
-            else:  # total size is unknown
-                status_message("read %d\n" % (readsofar,))
-
-        urlretrieve(url, filename, reporthook)
-
-        return True
 
     except (urllib.error.HTTPError) as e:
         err = '%s: HTTP error %s contacting API' % (__name__, str(e.code))
