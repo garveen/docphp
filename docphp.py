@@ -45,13 +45,11 @@ def plugin_loaded():
     if not language:
         installLanguagePopup(languageName='en', use_svn=False, set_fallback=True)
     else:
-        try:
-            tarGzPath = getTarGzPath()
+        tarGzPath = getTarGzPath()
+        if os.path.isdir(tarGzPath):
             tar = tarfile.open(tarGzPath)
             openfiles[tarGzPath] = tar
             sublime.set_timeout_async(tar.getmembers, 0)
-        except:
-            pass
 
 
 def plugin_unloaded():
@@ -66,7 +64,8 @@ def plugin_unloaded():
     from package_control import events
 
     if events.remove(package_name):
-        shutil.rmtree(getDocphpPath())
+        if os.path.isdir(getDocphpPath()):
+            shutil.rmtree(getDocphpPath())
 
 
 def getSetting(key):
