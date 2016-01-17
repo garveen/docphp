@@ -92,18 +92,19 @@ def isSvn():
 
 
 def getLanguageList(languageName=None):
-    languages = sublime.decode_value(sublime.load_resource('Packages/docphp/languages.json'))
+    languages = sublime.decode_value(sublime.load_resource('Packages/DocPHPManualer/languages.json'))
     languages = [(k, languages[k]) for k in sorted(languages.keys())]
 
     languageNameList = []
     languageList = []
+    index = None
     for k, v in languages:
         if k == languageName:
             index = len(languageList)
         languageNameList.append(k)
         languageList.append(k + ' ' + v['name'] + ' (' + v['nativeName'] + ')')
 
-    return languageNameList, languageList
+    return languageNameList, languageList, index
 
 
 def generateEntities():
@@ -153,7 +154,7 @@ def decodeIsoEntity(xml):
     if isoEntities:
         forward, reverse = isoEntities
     else:
-        forward = sublime.decode_value(sublime.load_resource('Packages/docphp/IsoEntities.json'))
+        forward = sublime.decode_value(sublime.load_resource('Packages/DocPHPManualer/IsoEntities.json'))
         reverse = dict((v, k) for k, v in forward.items())
         isoEntities = (forward, reverse)
 
@@ -474,7 +475,7 @@ def installLanguagePopup(languageName=None, use_svn=False, set_fallback=False):
     if downloading:
         sublime.message_dialog('Another progress is working for checkout ' + downloading + '. Please try again later.')
         return
-    languageNameList, languageList = getLanguageList(languageName)
+    languageNameList, languageList, index = getLanguageList(languageName)
 
     def updateLanguage(index=None):
         if index == -1:
@@ -483,6 +484,7 @@ def installLanguagePopup(languageName=None, use_svn=False, set_fallback=False):
         languagePath = getDocphpPath() + 'language/' + languageName
 
         def checkoutLanguage():
+            global language
             if use_svn:
                 sublime.status_message('checking out ' + languageName)
                 global downloading
@@ -507,6 +509,7 @@ def installLanguagePopup(languageName=None, use_svn=False, set_fallback=False):
                 return False
 
             setSetting('language', languageName)
+            language = languageName
             languageSettings = currentSettings.get('languages')
 
             if use_svn:
