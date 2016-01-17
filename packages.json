@@ -1,0 +1,16 @@
+{
+    "schema_version": "3.0.0",
+    "packages": [
+        {
+            "name": "DocPHPManualer",
+            "details": "https://github.com/acabin/docphp",
+            "labels":["document","php","manual"],
+            "releases": [
+                {
+                    "sublime_text": ">=3000",
+                    "tags":true
+                }
+            ]
+        }
+    ]
+}
