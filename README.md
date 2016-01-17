@@ -6,13 +6,13 @@ show the document of current function on Sublime Text
 
 ### Usage
 
-This package will automatically download the Engish language pack after installed. If you want you use a language other than English, please follow suggestions blow:
+This package will automatically download the Engish language pack from `php.net` after installed. If you want you use a language other than English, please use the `DocPHP: checkout language` command, and this will take a few minutes depends on your Internet connection.
 
-First, use the `checkout language` command for which you are using, and this will take a few minutes depends on your Internet connection. Then when you pointed to a function name, press `ctrl + alt + d`, and see what's happening!
+The default hotkey is `ctrl + alt + d`.
 
 Note:
 
-DocPHPManualer will generate cache files, which usually located at SUBLIME_PATH/Data/Cache/docphp. You may need to remove these files manually in case uninstall DocPHPManualer completely.
+DocPHPManualer will generate cache files, which usually located at SUBLIME_PATH/Data/Cache/DocPHPManualer. These cache files should be removed automatically when removing the package.
 
 ### Settings
 
