@@ -28,14 +28,13 @@ downloading = False
 
 # for auto show
 prevTime = 0
-delayTime = 0
+delaying = False
 
 
 def plugin_loaded():
-    global currentSettings, language, delayTime
+    global currentSettings, language
     currentSettings = sublime.load_settings('docphp.sublime-settings')
     language = currentSettings.get('language')
-    delayTime = getSetting('auto_delay')
     if not language:
         docphpPath = getDocphpPath()
         if not os.path.isdir(docphpPath + 'language'):
@@ -674,9 +673,14 @@ class DocphpSelectLanguageCommand(sublime_plugin.TextCommand):
 
 
 def doAutoShow():
+    global delaying
+    delayTime = getSetting('auto_delay')
     if (time.time() - prevTime) * 1000 > delayTime:
+        delaying = False
         if not currentView.is_popup_visible():
             currentView.run_command('docphp_show_definition')
+    else:
+        sublime.set_timeout_async(doAutoShow, int(delayTime - (time.time() - prevTime) * 1000) + 50)
 
 
 class DocPHPListener(sublime_plugin.EventListener):
@@ -686,8 +690,11 @@ class DocPHPListener(sublime_plugin.EventListener):
         currentView = view
 
     def on_selection_modified_async(self, view):
-        global prevTime
+        global prevTime, delaying
+
         if not getSetting('auto'):
             return
         prevTime = time.time()
-        sublime.set_timeout_async(doAutoShow, delayTime + 50)
+        if not delaying:
+            sublime.set_timeout_async(doAutoShow, getSetting('auto_delay') + 50)
+            delaying = True
