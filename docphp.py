@@ -272,7 +272,7 @@ def getSymbolDescription(symbol, use_language=False, fallback=False):
         global language
 
     if language not in docphp_languages and not loadLanguage():
-        sublime.error_message('The language "' + language + '" not installed\nYou can use\n\n   DocPHP: checkout language\n\nto checkout a language pack')
+        sublime.error_message('The language "' + 'en' + '" has not yet installed.\nYou can use\n\n   DocPHP: checkout language\n\ncommand to checkout a language pack.')
         return None, False
 
     symbol = symbol.lower()
