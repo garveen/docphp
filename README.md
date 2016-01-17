@@ -16,7 +16,7 @@ DocPHPManualer will generate cache files, which usually located at SUBLIME_PATH/
 
 ### Settings
 
-```
+```javascript
 {
 	// Show manual automatically
 	"auto": false,
