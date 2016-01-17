@@ -46,7 +46,7 @@ def plugin_loaded():
         installLanguagePopup(languageName='en', use_svn=False, set_fallback=True)
     else:
         tarGzPath = getTarGzPath()
-        if os.path.isdir(tarGzPath):
+        if os.path.isfile(tarGzPath):
             tar = tarfile.open(tarGzPath)
             openfiles[tarGzPath] = tar
             sublime.set_timeout_async(tar.getmembers, 0)
@@ -202,10 +202,11 @@ def loadLanguage():
     global docphp_languages
 
     if not isSvn():
-        if not os.path.isfile(getTarGzPath()):
+        tarGzPath = getTarGzPath()
+
+        if not os.path.isfile(tarGzPath):
             return False
 
-        tarGzPath = getTarGzPath()
         try:
             tar = openfiles[tarGzPath]
         except KeyError:
@@ -271,7 +272,8 @@ def getSymbolDescription(symbol, use_language=False, fallback=False):
         global language
 
     if language not in docphp_languages and not loadLanguage():
-        sublime.error_message('The language "' + 'en' + '" has not yet installed.\nYou can use\n\n   DocPHP: checkout language\n\ncommand to checkout a language pack.')
+        sublime.error_message(
+            'The language "' + 'en' + '" has not yet installed.\nYou can use\n\n   DocPHP: checkout language\n\ncommand to checkout a language pack.')
         return None, False
 
     symbol = symbol.lower()
