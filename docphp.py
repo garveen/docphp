@@ -650,7 +650,7 @@ class DocphpSelectLanguageCommand(sublime_plugin.TextCommand):
         view = self.view
         currentView = view
 
-        languageNameListAll, languageListAll = getLanguageList()
+        languageNameListAll, languageListAll, index = getLanguageList()
         availableLanguages = getSetting('languages')
         languageNameList = []
         languageList = []
