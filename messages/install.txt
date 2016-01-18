@@ -1,0 +1,15 @@
+DocPHPManualer for Sublime Text 3
+=================================
+
+Thank you for installing.
+
+This package will show a list of available languages, which you may select the
+one you are using from it. If you want you change language pack later, please
+use the `DocPHP: checkout language` command. All these operations will take a
+few minutes depends on your Internet connection.
+
+Default hotkeys:
+
+ctrl + alt + d for Show Definition
+
+ctrl + alt + s for Search Manual

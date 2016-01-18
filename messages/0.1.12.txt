@@ -1,0 +1,10 @@
+DocPHPManualer
+==============
+
+Thank you for upgrading.
+
+There are two new features added in command palette:
+
+DocPHP: Open Manual Index Page
+
+DocPHP: Search Manual

@@ -8,7 +8,7 @@ show the document of current function on Sublime Text
 
 This package will show a list of available languages after installed, which you may select the one you are using from it. If you want you change language pack later, please use the `DocPHP: checkout language` command. All these operations will take a few minutes depends on your Internet connection.
 
-The default hotkey is `ctrl + alt + d`.
+The default hotkeys are `ctrl + alt + d` for `Show Definition` and `ctrl + alt + s` for `Search Manual`
 
 ##### Note:
 
@@ -59,16 +59,19 @@ DocPHPManualer will generate cache files, which usually located at SUBLIME_PATH/
 
 ```json
 [
-    {"caption": "DocPHP: show definition", "command": "docphp_show_definition"},
-    {"caption": "DocPHP: checkout language", "command": "docphp_checkout_language"},
-    {"caption": "DocPHP: select language", "command": "docphp_select_language"},
+    {"caption": "DocPHP: Show Definition", "command": "docphp_show_definition"},
+    {"caption": "DocPHP: Checkout Language", "command": "docphp_checkout_language"},
+    {"caption": "DocPHP: Select Language", "command": "docphp_select_language"},
+    {"caption": "DocPHP: Open Manual Index Page", "command": "docphp_open_manual_index"},
+    {"caption": "DocPHP: Search Manual", "command": "docphp_search"},
 ]
 ```
 
-### Hotkey
+### Hotkeys
 
 ```json
 [
-	{ "keys": ["ctrl+alt+d"], "command": "docphp_show_definition"}
+	{ "keys": ["ctrl+alt+d"], "command": "docphp_show_definition"},
+	{ "keys": ["ctrl+alt+s"], "command": "docphp_search"},
 ]
 ```
