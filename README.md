@@ -6,11 +6,11 @@ show the document of current function on Sublime Text
 
 ### Usage
 
-This package will automatically download the Engish language pack from `php.net` after installed. If you want you use a language other than English, please use the `DocPHP: checkout language` command, and this will take a few minutes depends on your Internet connection.
+This package will show a list of available languages after installed, which you may select the one you are using from it. If you want you change language pack later, please use the `DocPHP: checkout language` command. All these operations will take a few minutes depends on your Internet connection.
 
 The default hotkey is `ctrl + alt + d`.
 
-Note:
+##### Note:
 
 DocPHPManualer will generate cache files, which usually located at SUBLIME_PATH/Data/Cache/DocPHPManualer. These cache files should be removed automatically when removing the package.
 
