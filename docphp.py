@@ -427,7 +427,8 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
         region = view.word(selection[0])
 
         if symbol == None:
-            symbol = view.substr(region).replace('_', '-')
+            symbol = view.substr(region)
+        symbol = symbol.replace('_', '-')
 
         # symbol = 'basename'
 
