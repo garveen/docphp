@@ -202,6 +202,17 @@ def getI18nSvnPath():
     return getDocphpPath() + '/language/' + language + '/phpdoc/'
 
 
+def getTarHandler():
+    tarGzPath = getTarGzPath()
+
+    try:
+        tar = openfiles[tarGzPath]
+    except KeyError:
+        tar = tarfile.open(tarGzPath)
+        openfiles[tarGzPath] = tar
+    return tar
+
+
 def loadLanguage():
     global docphp_languages
 
@@ -211,11 +222,7 @@ def loadLanguage():
         if not os.path.isfile(tarGzPath):
             return False
 
-        try:
-            tar = openfiles[tarGzPath]
-        except KeyError:
-            tar = tarfile.open(tarGzPath)
-            openfiles[tarGzPath] = tar
+        tar = getTarHandler()
         tar.getmembers()
 
         def generate():
@@ -270,14 +277,14 @@ def getJsonOrGenerate(name, callback):
 
 
 def getSymbolDescription(symbol, use_language=False, fallback=False):
-    if use_language:
-        language = use_language
-    else:
+    if not use_language:
         global language
+    else:
+        language = use_language
 
     if language not in docphp_languages and not loadLanguage():
         sublime.error_message(
-            'The language "' + 'en' + '" has not yet installed.\nYou can use\n\n   DocPHP: checkout language\n\ncommand to checkout a language pack.')
+            'The language "' + language + '" has not yet installed.\nYou can use\n\n   DocPHP: checkout language\n\ncommand to checkout a language pack.')
         return None, False
 
     symbol = symbol.lower()
@@ -307,12 +314,8 @@ def getSymbolDescription(symbol, use_language=False, fallback=False):
 
 def getSymbolFromHtml(symbol):
 
-    tarPath = getTarGzPath()
-    try:
-        tar = openfiles[tarPath]
-    except KeyError:
-        tar = tarfile.open(getTarGzPath())
-        openfiles[tarPath] = tar
+    tar = getTarHandler()
+
     member = tar.getmember(docphp_languages[language]["symbolList"][symbol])
     f = tar.extractfile(member)
     output = f.read().decode(errors='ignore')
@@ -409,7 +412,7 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
     history = []
     currentSymbol = ''
 
-    def run(self, edit):
+    def run(self, edit, symbol=None):
         global language, currentView
         view = self.view
         currentView = view
@@ -418,16 +421,18 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
         language = getSetting('language')
 
         selection = view.sel()
-        if not re.search('source\.php', view.scope_name(selection[0].a)):
+        if not symbol and not re.search('source\.php', view.scope_name(selection[0].a)):
             return
 
         region = view.word(selection[0])
 
-        symbol = view.substr(region).replace('_', '-')
+        if symbol == None:
+            symbol = view.substr(region).replace('_', '-')
 
         # symbol = 'basename'
 
         symbol, symbolDescription = getSymbolDescription(symbol)
+
         if symbolDescription == None:
             if getSetting('prompt_when_not_found'):
                 view.show_popup('not found', sublime.COOPERATE_WITH_AUTO_COMPLETE)
@@ -672,6 +677,33 @@ class DocphpSelectLanguageCommand(sublime_plugin.TextCommand):
                 sublime.set_timeout_async(loadLanguage, 0)
 
         currentView.window().show_quick_panel(languageList, selectLanguageCallback)
+
+
+class DocphpOpenManualIndexCommand(sublime_plugin.TextCommand):
+
+    def run(self, edit):
+        self.view.run_command('docphp_show_definition', {"symbol": 'index'})
+
+
+class DocphpSearchCommand(sublime_plugin.TextCommand):
+
+    def run(self, edit):
+        global currentView
+        view = self.view
+        currentView = view
+        tar = getTarHandler()
+
+        files = []
+        for tarinfo in tar.getmembers():
+            m = re.search('^.*?/(.*)\.html$', tarinfo.name)
+            if m:
+                files.append(m.group(1).replace('-', '_'))
+        files.sort()
+
+        def show(index):
+            currentView.run_command('docphp_show_definition', {"symbol": files[index]})
+
+        currentView.window().show_quick_panel(files, show, sublime.KEEP_OPEN_ON_FOCUS_LOST)
 
 
 def doAutoShow():
