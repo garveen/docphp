@@ -34,16 +34,20 @@ delaying = False
 
 
 def plugin_loaded():
-    global currentSettings, language
+    global currentSettings, language, currentView
     currentSettings = sublime.load_settings(setting_file)
     language = currentSettings.get('language')
+    currentView = sublime.active_window().active_view()
 
     docphpPath = getDocphpPath()
     if not os.path.isdir(docphpPath + 'language'):
         os.makedirs(docphpPath + 'language')
 
-    if not language:
-        installLanguagePopup(languageName='en', use_svn=False, set_fallback=True)
+    from package_control import events
+
+    if events.install(package_name):
+
+        installLanguagePopup(is_init=True, set_fallback=True)
     else:
         tarGzPath = getTarGzPath()
         if os.path.isfile(tarGzPath):
@@ -483,7 +487,7 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
             panel.set_read_only(True)
 
 
-def installLanguagePopup(languageName=None, use_svn=False, set_fallback=False):
+def installLanguagePopup(languageName=None, use_svn=False, set_fallback=False, is_init=False):
     global downloading
     if downloading:
         sublime.message_dialog('Another progress is working for checkout ' + downloading + '. Please try again later.')
@@ -542,7 +546,7 @@ def installLanguagePopup(languageName=None, use_svn=False, set_fallback=False):
     if languageName:
         updateLanguage(index)
     else:
-        currentView.window().show_quick_panel(languageList, updateLanguage)
+        currentView.window().show_quick_panel(languageList, updateLanguage, sublime.KEEP_OPEN_ON_FOCUS_LOST)
 
 
 def downloadLanguageGZ(name):
