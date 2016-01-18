@@ -326,7 +326,7 @@ def getSymbolFromHtml(symbol):
         '&quot;': "'",
         '<br>': '',
         '&#039;': "'",
-        '&$': "&amp;",
+        '&$': "&amp;$",
         '&raquo;': '>>',
     }
     pattern = "|".join(map(re.escape, dic.keys()))
