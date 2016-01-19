@@ -1,13 +1,8 @@
 import sublime
 import sublime_plugin
-import xml.etree.ElementTree as ET
 import re
 import os
-import subprocess
-import glob
 import shutil
-import urllib.request
-import io
 import tarfile
 import webbrowser
 import time
@@ -97,15 +92,6 @@ def setSetting(key, value):
     sublime.save_settings(setting_file)
 
 
-def isSvn():
-    languages = getSetting('languages')
-    try:
-        setting = languages[language]
-        return setting == 'svn'
-    except Exception:
-        return
-
-
 def getLanguageList(languageName=None):
     languages = sublime.decode_value(sublime.load_resource('Packages/' + package_name + '/languages.json'))
     languages = [(k, languages[k]) for k in sorted(languages.keys())]
@@ -122,49 +108,9 @@ def getLanguageList(languageName=None):
     return languageNameList, languageList, index
 
 
-def generateEntities():
-    global entities
-
-    def generate():
-        entitiesLocal = {}
-        for entitiesFile in glob.glob(getI18nSvnPath() + '*.ent'):
-            with open(entitiesFile, 'r', -1, 'utf8') as f:
-                entitiesText = f.read(10485760)
-            matches = re.findall("^<!ENTITY\s+([a-zA-Z0-9._-]+)\s+(['\"])([\s\S]*?)\\2>$", entitiesText, re.MULTILINE)
-            for match in matches:
-                key, quote, content = match
-                entitiesLocal[key] = re.sub(' xmlns="[^"]+"', '', content)
-        return entitiesLocal
-
-    entities[language] = getJsonOrGenerate('entities', generate)
-
-
-def decodeEntity(xml):
-    if language not in entities:
-        generateEntities()
-
-    def parseEntity(match):
-        entity = match.group(1)
-        if entity not in entities[language]:
-            return " <b>" + entity.upper() + "</b> "
-        else:
-            return entities[language][entity]
-
-    i = 10
-    while i:
-        i -= 1
-        newxml = re.sub('&([a-zA-Z0-9._-]+);', parseEntity, xml)
-        if newxml == xml:
-            break
-        else:
-            xml = newxml
-    return xml
-
-
 def decodeIsoEntity(xml):
     global isoEntities
     if not isinstance(xml, str):
-        print(xml)
         return xml
     if isoEntities:
         forward, reverse = isoEntities
@@ -198,10 +144,6 @@ def getI18nCachePath():
     return getDocphpPath() + 'language/' + language + '/'
 
 
-def getI18nSvnPath():
-    return getDocphpPath() + '/language/' + language + '/phpdoc/'
-
-
 def getTarHandler():
     tarGzPath = getTarGzPath()
 
@@ -215,47 +157,27 @@ def getTarHandler():
 
 def loadLanguage():
     global docphp_languages
+    tarGzPath = getTarGzPath()
 
-    if not isSvn():
-        tarGzPath = getTarGzPath()
-
-        if not os.path.isfile(tarGzPath):
-            return False
-
-        tar = getTarHandler()
-        tar.getmembers()
-
-        def generate():
-            symbols = {}
-
-            for tarinfo in tar:
-                m = re.search('^php-chunked-xhtml/(.*)\.html$', tarinfo.name)
-                if m:
-                    symbols[m.group(1)] = m.group(0)
-            return symbols
-
-        symbols = getJsonOrGenerate('packed_symbols', generate)
-        docphp_languages[language] = {"symbolList": symbols, "definition": {}}
-
-        return True
-
-    if not os.path.isdir(getI18nSvnPath()):
+    if not os.path.isfile(tarGzPath):
         return False
+
+    tar = getTarHandler()
+    tar.getmembers()
 
     def generate():
         symbols = {}
-        i18nPath = getI18nSvnPath()
-        pathLen = len(i18nPath)
-        for root, dirnames, filenames in os.walk(i18nPath):
-            for xmlFile in filenames:
-                for name in re.findall('^(.+)\.xml$', xmlFile):
-                    symbols[name] = os.path.join(root[pathLen:], xmlFile)
+
+        for tarinfo in tar:
+            m = re.search('^php-chunked-xhtml/(.*)\.html$', tarinfo.name)
+            if m:
+                symbols[m.group(1)] = m.group(0)
         return symbols
 
     symbols = getJsonOrGenerate('packed_symbols', generate)
     docphp_languages[language] = {"symbolList": symbols, "definition": {}}
-    return True
 
+    return True
 
 def getJsonOrGenerate(name, callback):
     filename = getI18nCachePath() + name + '.json'
@@ -289,12 +211,12 @@ def getSymbolDescription(symbol, use_language=False, fallback=False):
 
     symbol = symbol.lower()
     symbolList = docphp_languages[language]["symbolList"]
-    if not isSvn():
-        if not fallback:
-            for prefix in ['function.', 'book.', 'class.']:
-                if prefix + symbol in symbolList:
-                    symbol = prefix + symbol
-                    break
+
+    if not fallback:
+        for prefix in ['function.', 'book.', 'class.']:
+            if prefix + symbol in symbolList:
+                symbol = prefix + symbol
+                break
 
     if symbol not in symbolList:
         if not fallback and getSetting('language_fallback'):
@@ -302,10 +224,7 @@ def getSymbolDescription(symbol, use_language=False, fallback=False):
         else:
             return None, None
     elif symbol not in docphp_languages[language]["definition"]:
-        if isSvn():
-            output = getSymbolFromXml(symbol)
-        else:
-            output = getSymbolFromHtml(symbol)
+        output = getSymbolFromHtml(symbol)
 
         output = decodeIsoEntity(output)
         docphp_languages[language]["definition"][symbol] = output
@@ -336,75 +255,6 @@ def getSymbolFromHtml(symbol):
                     language+'/'+symbol+'.php">\\2</a><br>\\3<a href="history.back">back</a>', output, count=1)
 
     output = '<style>#container{margin:10px}</style><div id="container">' + output + "</div>"
-    return output
-
-
-def getSymbolFromXml(symbol):
-
-    defFile = docphp_languages[language]["symbolList"][symbol]
-
-    with open(getI18nSvnPath() + defFile, 'r', encoding='utf8') as f:
-        xml = f.read(10485760)
-    xml = re.sub(' xmlns="[^"]+"', '', xml, 1)
-    xml = decodeEntity(xml)
-    xml = re.sub(' xlink:href="[^"]+"', '', xml)
-    try:
-        root = ET.fromstring(xml)
-    except ET.ParseError as e:
-        if getSetting('debug'):
-            print(xml)
-            raise e
-        sublime.error_message('Cannot read definition of ' + symbol + ', please report this issue on github')
-        return None, False
-    output = ''
-
-    refsect1 = root.find('refsect1[@role="description"]')
-    if not refsect1:
-        refsect1 = root.find('refsect1')
-
-    methodsynopsis = refsect1.find('methodsynopsis')
-
-    if not methodsynopsis:
-        methodsynopsis = root.find('refsect1/methodsynopsis')
-
-    output += '<type>' + methodsynopsis.find('type').text + '</type> <b style="color:#369">' + symbol + "</b> ("
-    hasPrviousParam = False
-    for methodparam in methodsynopsis.findall('methodparam'):
-
-        output += ' '
-        attrib = methodparam.attrib
-        opt = False
-        if "choice" in attrib and attrib['choice'] == 'opt':
-            opt = True
-            output += "["
-        if hasPrviousParam:
-            output += ", "
-        output += '<type>' + methodparam.find('type').text + "</type> $" + methodparam.find('parameter').text
-        if opt:
-            output += "]"
-        hasPrviousParam = True
-    output += " )\n"
-
-    # output += root.find('refnamediv/refpurpose').text.strip() + "\n\n";
-
-    for para in refsect1.findall('para'):
-        output += "   " + \
-            re.sub("<.*?>", "", re.sub("<row>([\s\S]*?)</row>", "\\1<br>", re.sub("\s\s+", " ", ET.tostring(para, 'utf8', 'html').decode()))) + "\n"
-
-    output += "\n"
-
-    variablelist = root.findall('refsect1[@role="parameters"]/para/variablelist/varlistentry')
-    for variable in variablelist:
-        output += ET.tostring(variable.find('term/parameter'), 'utf8', 'html').decode() + " :\n"
-        for para in variable.findall('listitem/para'):
-            # TODO: parse table
-            output += "   " + re.sub("<row>([\s\S]*?)</row>", "\\1<br>", re.sub("\s\s+", " ", ET.tostring(para, 'utf8', 'html').decode())) + "\n"
-        output += "\n"
-    output += "\n"
-
-    returnvalues = root.findall('refsect1[@role="returnvalues"]/para')
-    for para in returnvalues:
-        output += re.sub("\s\s+", " ", ET.tostring(para, 'utf8', 'html').decode()).strip() + "\n"
     return output
 
 
@@ -443,11 +293,7 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
 
         if getSetting('use_panel') == False:
             output = symbolDescription
-            if isSvn():
-                output = re.sub('\n', '<br>\n', symbolDescription)
-                output = re.sub('<parameter>', '<parameter style="color:#369;font-weight:900"><b>', output)
-                output = re.sub('</parameter>', '</b></parameter>', output)
-                output = re.sub('<type>', '<type style="color:#369">', output)
+
             if getSetting('debug'):
                 print(output)
 
@@ -493,7 +339,7 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
             panel.set_read_only(True)
 
 
-def installLanguagePopup(languageName=None, use_svn=False, set_fallback=False, is_init=False):
+def installLanguagePopup(languageName=None, set_fallback=False, is_init=False):
     global downloading
     if downloading:
         sublime.message_dialog('Another progress is working for checkout ' + downloading + '. Please try again later.')
@@ -508,25 +354,7 @@ def installLanguagePopup(languageName=None, use_svn=False, set_fallback=False, i
 
         def checkoutLanguage():
             global language
-            if use_svn:
-                sublime.status_message(package_name + ': checking out ' + languageName)
-                global downloading
-                downloading = languageName
-                p = runCmd('svn', ['checkout', 'http://svn.php.net/repository/phpdoc/' + languageName + '/trunk', 'phpdoc_svn'], languagePath)
-                out, err = p.communicate()
-                downloading = False
-                if p.returncode == 0:
-                    if os.path.isdir(languagePath + '/phpdoc'):
-                        shutil.rmtree(languagePath + '/phpdoc')
-
-                    os.rename(languagePath + '/phpdoc_svn', languagePath + '/phpdoc')
-
-                elif getSetting('debug'):
-                    print(out)
-                    print(err)
-                shutil.rmtree(languagePath + '/phpdoc_svn')
-                return False
-            elif not downloadLanguageGZ(languageName):
+            if not downloadLanguageGZ(languageName):
                 if getSetting('debug'):
                     print('download error')
                 return False
@@ -535,10 +363,7 @@ def installLanguagePopup(languageName=None, use_svn=False, set_fallback=False, i
             language = languageName
             languageSettings = currentSettings.get('languages')
 
-            if use_svn:
-                languageSettings[languageName] = 'svn'
-            else:
-                languageSettings[languageName] = 'gz'
+            languageSettings[languageName] = 'gz'
 
             setSetting('languages', languageSettings)
             if set_fallback:
@@ -601,11 +426,6 @@ def downloadLanguageGZ(name):
 
     except (urllib.error.HTTPError) as e:
         err = '%s: HTTP error %s contacting API' % (__name__, str(e.code))
-        if e.code == 404:
-            # fall back to SVN
-            installLanguagePopup(name, use_svn=True)
-            return False
-
     except (urllib.error.URLError) as e:
         err = '%s: URL error %s contacting API' % (__name__, str(e.reason))
     except Exception as e:
@@ -617,30 +437,6 @@ def downloadLanguageGZ(name):
     if getSetting('debug'):
         print(err)
     return
-
-
-def runCmd(binType, params, cwd=None):
-    binary = getSetting(binType + '_bin')
-    params.insert(0, binary)
-    if not os.path.isfile(binary) and binary != binType:
-        sublime.error_message("Can't find " + binary + " binary file at " + binary)
-        return False
-
-    try:
-        if os.name == 'nt':
-            startupinfo = subprocess.STARTUPINFO()
-            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-            p = subprocess.Popen(params, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd, shell=False, startupinfo=startupinfo)
-        else:
-            p = subprocess.Popen(params, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd, shell=False)
-        return p
-
-    except FileNotFoundError:
-        message = 'Cannot run ' + binType + ' command, please check your settings.'
-        if binType == 'svn':
-            message += '\n\nSVN is needed by ' + package_name + ' for checking out this language pack.'
-        sublime.error_message(message)
-        return False
 
 
 class DocphpCheckoutLanguageCommand(sublime_plugin.TextCommand):
