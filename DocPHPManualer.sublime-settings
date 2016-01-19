@@ -24,9 +24,6 @@
 	// Prompt "not found" when symbol not found
 	"prompt_when_not_found": true,
 
-	// In rare condiction the program may fallback to svn
-	"svn_bin": "svn",
-
 	// Use the panel on the bottom instead of popup
 	"use_panel": false
 }

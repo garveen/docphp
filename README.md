@@ -43,17 +43,10 @@ DocPHPManualer will generate cache files, which usually located at SUBLIME_PATH/
 	// Prompt "not found" when symbol not found
 	"prompt_when_not_found": true,
 
-	// In rare condiction the program may fallback to svn
-	"svn_bin": "svn",
-
 	// Use the panel on the bottom instead of popup
 	"use_panel": false
 }
 ```
-
-##### Note:
-
-`svn_bin` is used when a language pack's download is failed.
 
 ### Commands
 
