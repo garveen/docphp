@@ -70,26 +70,10 @@ def plugin_unloaded():
 
 
 def getSetting(key):
-    global currentView, currentSettings
-
-    local = 'docphp.' + key
-    if currentView:
-        settings = currentView.settings()
-        if settings:
-            return settings.get(local, currentSettings.get(key))
-
     return currentSettings.get(key)
 
 
 def setSetting(key, value):
-    global currentView, currentSettings
-
-    local = 'docphp.' + key
-    if currentView:
-        settings = currentView.settings()
-        if settings:
-            settings.set(local, value)
-
     currentSettings.set(key, value)
     sublime.save_settings(setting_file)
 
@@ -274,9 +258,22 @@ def formatContent(content, use_panel=False, symbol=False):
         content = re.sub('^\s+', '', content, count=1)
         content = decodeEntity(content, 'html')
     else:
-        content = re.sub('(<h[1-6][^<>]*>)(.*?)(</h[1-6][^<>]*>)', '\\1<a href="http://php.net/manual/' + language +
-                         '/' + symbol + '.php">\\2</a><br>\\3<a href="history.back">back</a>', content, count=1)
-        content = '<style>#container{margin:10px}</style><div id="container">' + content + "</div>"
+        if not isinstance(content, str):
+            return
+
+        to = '\\1\\2\\3<br><a href="history.back">back</a>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a href="http://php.net/manual/' + \
+            language + '/' + symbol + '.php">online</a>'
+        languages = getSetting('languages')
+        if len(languages) > 1:
+            to += '&nbsp;&nbsp;&nbsp;&nbsp;Change language:'
+            for lang in getSetting('languages'):
+                to += ' <a href="changeto.' + lang + '">' + lang + '</a>'
+        content = re.sub('(<h[1-6][^<>]*>)(.*?)(</h[1-6][^<>]*>)', to, content, count=1)
+        content = re.sub('<(/?)(blockquote|tr|li|ul|dl|dt|dd|table|tbody|thead)\\b', '<\\1div', content)
+        content = re.sub('<(/?)(td)\\b', '<\\1span', content)
+        content = re.sub('(?<=</h[1-6]>)', '<div class="horizontal-rule"></div>', content)
+        content = '<style>'+sublime.load_resource('Packages/' + package_name + '/style.css') + \
+            '</style><div id="outer"><div id="container">' + content + "</div></div>"
     return content
 
 
@@ -331,19 +328,26 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
                     webbrowser.open_new(url)
                     return True
 
-                if url == 'history.back':
-                    symbol = self.history.pop()
-                    self.currentSymbol = symbol
-
+                m = re.search('changeto\.(.*)', url)
+                if m:
+                    symbol, content = getSymbolDescription(self.currentSymbol, m.group(1))
                 else:
-                    self.history.append(self.currentSymbol)
-                    symbol = url[:url.find('.html')]
-                    self.currentSymbol = symbol
+                    if url == 'history.back':
+                        symbol = self.history.pop()
+                        self.currentSymbol = symbol
+
+                    else:
+                        self.history.append(self.currentSymbol)
+                        symbol = url[:url.find('.html')]
+                        self.currentSymbol = symbol
+                    symbol, content = getSymbolDescription(symbol)
+
+
+                content = formatContent(content, symbol=symbol)
 
                 # It seems sublime will core when the output is too long
                 # In some cases the value can set to 76200, but we use a 65535 for safety.
-                symbol, content = getSymbolDescription(symbol)[:65535]
-                content = formatContent(content, symbol=symbol)
+                content = content[:65535]
                 view.update_popup(content)
 
             width, height = view.viewport_extent()
@@ -502,7 +506,7 @@ class DocphpSelectLanguageCommand(sublime_plugin.TextCommand):
             if index != -1:
                 language = languageNameList[index]
                 setSetting('language', language)
-                sublime.set_timeout_async(loadLanguage, 0)
+                loadLanguage()
 
         currentView.window().show_quick_panel(languageList, selectLanguageCallback)
 
