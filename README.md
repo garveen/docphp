@@ -1,5 +1,7 @@
 ## DocPHPManualer for Sublime Text 3
 
+[![Packagecontrol total downloads](https://img.shields.io/packagecontrol/dt/DocPHPManualer.svg?style=flat-square)](https://packagecontrol.io/packages/DocPHPManualer/)
+
 show the document of current function on Sublime Text
 
 <img src="https://raw.github.com/acabin/docphp/screenshots/screenshots/popup.png" alt="Popup manual" width="956">
