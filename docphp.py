@@ -281,7 +281,7 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
     history = []
     currentSymbol = ''
 
-    def run(self, edit, symbol=None):
+    def run(self, edit, symbol=None, force=False):
         global language, currentView
         view = self.view
         currentView = view
@@ -291,7 +291,7 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
 
         selection = view.sel()
 
-        if not view.score_selector(selection[0].a, 'source.php'):
+        if not force and not view.score_selector(selection[0].a, 'source.php'):
             return
 
         region = view.word(selection[0])
@@ -476,12 +476,12 @@ def downloadLanguageGZ(name):
 
 class DocphpCheckoutLanguageCommand(sublime_plugin.TextCommand):
 
-    def run(self, edit):
+    def run(self, edit, languageName=None):
         view = self.view
         global currentView
         currentView = view
 
-        installLanguagePopup()
+        installLanguagePopup(languageName)
 
 
 class DocphpSelectLanguageCommand(sublime_plugin.TextCommand):
@@ -514,7 +514,7 @@ class DocphpSelectLanguageCommand(sublime_plugin.TextCommand):
 class DocphpOpenManualIndexCommand(sublime_plugin.TextCommand):
 
     def run(self, edit):
-        self.view.run_command('docphp_show_definition', {"symbol": 'index'})
+        self.view.run_command('docphp_show_definition', {"symbol": 'index', "force": True})
 
 
 class DocphpSearchCommand(sublime_plugin.TextCommand):
@@ -534,7 +534,7 @@ class DocphpSearchCommand(sublime_plugin.TextCommand):
 
         def show(index):
             if index != -1:
-                currentView.run_command('docphp_show_definition', {"symbol": files[index]})
+                currentView.run_command('docphp_show_definition', {"symbol": files[index], "force": True})
 
         currentView.window().show_quick_panel(files, show, sublime.KEEP_OPEN_ON_FOCUS_LOST)
 
