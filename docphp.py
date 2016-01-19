@@ -13,11 +13,13 @@ package_name = 'DocPHPManualer'
 setting_file = package_name + '.sublime-settings'
 
 docphp_languages = {}
-entities = {}
 currentView = False
 currentSettings = None
 openfiles = {}
-isoEntities = {}
+entities = {
+    "iso": False,
+    "html": False
+}
 
 language = ''
 
@@ -52,12 +54,12 @@ def plugin_loaded():
 
 
 def plugin_unloaded():
-    try:
-        for k in openfiles:
+    for k in openfiles:
+        try:
             openfiles[k].close()
-    except Exception as e:
-        if getSetting('debug'):
-            print(e)
+        except Exception as e:
+            if getSetting('debug'):
+                print(e)
     sublime.save_settings(setting_file)
 
     from package_control import events
@@ -108,16 +110,19 @@ def getLanguageList(languageName=None):
     return languageNameList, languageList, index
 
 
-def decodeIsoEntity(xml):
-    global isoEntities
+def decodeEntity(xml, category='iso'):
+    global entities
     if not isinstance(xml, str):
         return xml
-    if isoEntities:
-        forward, reverse = isoEntities
+    if entities[category]:
+        forward, reverse = entities[category]
     else:
-        forward = sublime.decode_value(sublime.load_resource('Packages/' + package_name + '/IsoEntities.json'))
+        if category == 'iso':
+            forward = sublime.decode_value(sublime.load_resource('Packages/' + package_name + '/IsoEntities.json'))
+        elif category == 'html':
+            forward = sublime.decode_value(sublime.load_resource('Packages/' + package_name + '/HtmlEntities.json'))
         reverse = dict((v, k) for k, v in forward.items())
-        isoEntities = (forward, reverse)
+        entities[category] = (forward, reverse)
 
     def parseEntity(match):
         entity = match.group(1)
@@ -179,6 +184,7 @@ def loadLanguage():
 
     return True
 
+
 def getJsonOrGenerate(name, callback):
     filename = getI18nCachePath() + name + '.json'
     if os.path.exists(filename):
@@ -226,7 +232,7 @@ def getSymbolDescription(symbol, use_language=False, fallback=False):
     elif symbol not in docphp_languages[language]["definition"]:
         output = getSymbolFromHtml(symbol)
 
-        output = decodeIsoEntity(output)
+        output = decodeEntity(output)
         docphp_languages[language]["definition"][symbol] = output
     return symbol, docphp_languages[language]["definition"][symbol]
 
@@ -251,11 +257,23 @@ def getSymbolFromHtml(symbol):
     pattern = "|".join(map(re.escape, dic.keys()))
 
     output = re.sub(pattern, lambda m: dic[m.group()], output)
-    output = re.sub('(<h[1-6][^<>]*>)([^<>]*)(</h[1-6][^<>]*>)', '\\1<a href="http://php.net/manual/' +
-                    language+'/'+symbol+'.php">\\2</a><br>\\3<a href="history.back">back</a>', output, count=1)
 
-    output = '<style>#container{margin:10px}</style><div id="container">' + output + "</div>"
     return output
+
+
+def formatContent(content, use_panel=False, symbol=False):
+    if use_panel:
+        content = re.sub('\s+', ' ', content)
+        content = re.sub('<(br\s*/?|/p|/div|/li|(div|p)\s[^<>]*|(div|p))>', '\n', content)
+        content = re.sub('<.*?>', '', content)
+        content = re.sub('\s+\n\s*\n\s+', '\n\n', content)
+        content = re.sub('^\s+', '', content, count=1)
+        content = decodeEntity(content, 'html')
+    else:
+        content = re.sub('(<h[1-6][^<>]*>)(.*?)(</h[1-6][^<>]*>)', '\\1<a href="http://php.net/manual/' + language +
+                         '/' + symbol + '.php">\\2</a><br>\\3<a href="history.back">back</a>', content, count=1)
+        content = '<style>#container{margin:10px}</style><div id="container">' + content + "</div>"
+    return content
 
 
 class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
@@ -321,16 +339,25 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
                 # It seems sublime will core when the output is too long
                 # In some cases the value can set to 76200, but we use a 65535 for safety.
                 symbol, content = getSymbolDescription(symbol)[:65535]
+                content = formatContent(content, symbol=symbol)
                 view.update_popup(content)
-            width, height = view.viewport_extent()
 
-            view.show_popup(output, flags=sublime.COOPERATE_WITH_AUTO_COMPLETE | sublime.HTML, location=-1, max_width=min(getSetting('popup_max_width'), width),
-                            max_height=min(getSetting('popup_max_height'), height), on_navigate=on_navigate,
-                            on_hide=on_hide)
+            width, height = view.viewport_extent()
+            output = formatContent(output, symbol=symbol)
+
+            view.show_popup(
+                output,
+                flags=sublime.COOPERATE_WITH_AUTO_COMPLETE | sublime.HTML,
+                location=-1,
+                max_width=min(getSetting('popup_max_width'), width),
+                max_height=min(getSetting('popup_max_height'), height),
+                on_navigate=on_navigate,
+                on_hide=on_hide
+            )
 
             return
         else:
-            output = re.sub('<.*?>', '', symbolDescription)
+            output = formatContent(symbolDescription, True)
             name = 'docphp'
 
             panel = window.get_output_panel(name)
