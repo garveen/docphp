@@ -271,7 +271,8 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
         language = getSetting('language')
 
         selection = view.sel()
-        if not symbol and not re.search('source\.php', view.scope_name(selection[0].a)):
+
+        if not view.score_selector(selection[0].a, 'source.php'):
             return
 
         region = view.word(selection[0])
@@ -419,7 +420,7 @@ def downloadLanguageGZ(name):
         finally:
             outputfile.close()
             downloading = False
-        if readsofar != totalsize:
+        if totalsize and readsofar != totalsize:
             return False
         else:
             return True
@@ -430,7 +431,6 @@ def downloadLanguageGZ(name):
         err = '%s: URL error %s contacting API' % (__name__, str(e.reason))
     except Exception as e:
         err = e.__class__.__name__
-        print(e.args)
 
     sublime.message_dialog('Language ' + name + ' checkout failed. Please try again.')
 
