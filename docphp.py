@@ -702,7 +702,8 @@ class DocphpSearchCommand(sublime_plugin.TextCommand):
         files.sort()
 
         def show(index):
-            currentView.run_command('docphp_show_definition', {"symbol": files[index]})
+            if index != -1:
+                currentView.run_command('docphp_show_definition', {"symbol": files[index]})
 
         currentView.window().show_quick_panel(files, show, sublime.KEEP_OPEN_ON_FOCUS_LOST)
 
