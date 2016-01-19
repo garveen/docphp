@@ -211,8 +211,12 @@ def getSymbolDescription(symbol, use_language=False, fallback=False):
         language = use_language
 
     if language not in docphp_languages and not loadLanguage():
+        if fallback:
+            begin = 'The fallback'
+        else:
+            begin = 'The'
         sublime.error_message(
-            'The language "' + language + '" has not yet installed.\nYou can use\n\n   DocPHP: checkout language\n\ncommand to checkout a language pack.')
+            begin + ' language "' + language + '" has not yet installed.\nYou can use\n\n   DocPHP: checkout language\n\ncommand to checkout a language pack.')
         return None, False
 
     symbol = symbol.lower()
