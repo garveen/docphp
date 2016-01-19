@@ -1,0 +1,6 @@
+DocPHPManualer
+==============
+
+Thank you for upgrading.
+
+This upgrade brings better display effect.
