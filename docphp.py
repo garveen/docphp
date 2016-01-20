@@ -39,7 +39,7 @@ def plugin_loaded():
     from package_control import events
 
     if events.install(package_name) or not language:
-        sublime.run_command('docphp_checkout_language', {"is_init": True, "set_fallback": True})
+        currentView.run_command('docphp_checkout_language', {"is_init": True, "set_fallback": True})
 
 
 def plugin_unloaded():
