@@ -42,7 +42,7 @@ def plugin_loaded():
 
     from package_control import events
 
-    if events.install(package_name):
+    if events.install(package_name) or not language:
 
         installLanguagePopup(is_init=True, set_fallback=True)
     else:
