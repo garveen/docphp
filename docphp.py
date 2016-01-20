@@ -528,11 +528,11 @@ class DocphpSearchCommand(sublime_plugin.TextCommand):
         view = self.view
         window = view.window()
         currentView = view
-        tar = getTarHandler()
-        symbol = None
         if not language:
             window.run_command('docphp_checkout_language')
             return
+        tar = getTarHandler()
+        symbol = None
 
         if at_point:
             symbol = view.substr(view.word(view.sel()[0]))
