@@ -281,6 +281,15 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
     history = []
     currentSymbol = ''
 
+    def is_enabled(self, **args):
+        selection = self.view.sel()
+        force = args.get('force')
+
+        if force or self.view.score_selector(selection[0].a, 'source.php'):
+            return True
+        else:
+            return False
+
     def run(self, edit, symbol=None, force=False):
         global language, currentView
         view = self.view
@@ -293,15 +302,8 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
             window.run_command('docphp_checkout_language')
             return
 
-        selection = view.sel()
-
-        if not force and not view.score_selector(selection[0].a, 'source.php'):
-            return
-
-        region = view.word(selection[0])
-
         if symbol == None:
-            symbol = view.substr(region)
+            symbol = view.substr(view.word(view.sel()[0]))
         symbol = symbol.replace('_', '-')
 
         # symbol = 'basename'
@@ -523,17 +525,22 @@ class DocphpOpenManualIndexCommand(sublime_plugin.TextCommand):
 
 class DocphpSearchCommand(sublime_plugin.TextCommand):
 
-    def run(self, edit):
+    def run(self, edit, at_point = False):
         global currentView
         view = self.view
+        window = view.window()
         currentView = view
         tar = getTarHandler()
-
+        symbol = None
         if not language:
             window.run_command('docphp_checkout_language')
             return
 
+        if at_point:
+            symbol = view.substr(view.word(view.sel()[0]))
+
         files = []
+
         for tarinfo in tar.getmembers():
             m = re.search('^.*?/(.*)\.html$', tarinfo.name)
             if m:
@@ -544,7 +551,8 @@ class DocphpSearchCommand(sublime_plugin.TextCommand):
             if index != -1:
                 currentView.run_command('docphp_show_definition', {"symbol": files[index], "force": True})
 
-        currentView.window().show_quick_panel(files, show, sublime.KEEP_OPEN_ON_FOCUS_LOST)
+        currentView.window().show_quick_panel(files, show)
+        window.run_command("insert", args= {"characters": symbol})
 
 
 def doAutoShow():

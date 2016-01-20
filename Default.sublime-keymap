@@ -1,4 +1,4 @@
 [
 	{ "keys": ["ctrl+alt+d"], "command": "docphp_show_definition"},
-	{ "keys": ["ctrl+alt+s"], "command": "docphp_search"},
+	{ "keys": ["ctrl+alt+s"], "command": "docphp_search", "args": {"at_point": false}},
 ]

@@ -1,0 +1,18 @@
+[
+    {
+        "caption": "DocPHPManualer",
+        "id": "DocPHPManualer",
+        "children":
+        [
+            {
+                "command": "docphp_show_definition",
+                "caption": "Show Definition"
+            },
+            {
+                "command": "docphp_search",
+                "args": {"at_point": true},
+                "caption": "Search"
+            }
+        ]
+    }
+]
