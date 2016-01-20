@@ -289,6 +289,10 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
         window = view.window()
         language = getSetting('language')
 
+        if not language:
+            window.run_command('docphp_checkout_language')
+            return
+
         selection = view.sel()
 
         if not force and not view.score_selector(selection[0].a, 'source.php'):
@@ -524,6 +528,10 @@ class DocphpSearchCommand(sublime_plugin.TextCommand):
         view = self.view
         currentView = view
         tar = getTarHandler()
+
+        if not language:
+            window.run_command('docphp_checkout_language')
+            return
 
         files = []
         for tarinfo in tar.getmembers():
