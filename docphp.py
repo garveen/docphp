@@ -25,10 +25,6 @@ language = ''
 
 downloading = False
 
-# for auto show
-prevTime = 0
-delaying = False
-
 
 def plugin_loaded():
     global currentSettings, language, currentView
@@ -43,14 +39,7 @@ def plugin_loaded():
     from package_control import events
 
     if events.install(package_name) or not language:
-
-        installLanguagePopup(is_init=True, set_fallback=True)
-    else:
-        tarGzPath = getTarGzPath()
-        if os.path.isfile(tarGzPath):
-            tar = tarfile.open(tarGzPath)
-            openfiles[tarGzPath] = tar
-            sublime.set_timeout_async(tar.getmembers, 0)
+        sublime.run_command('docphp_checkout_language', {"is_init": True, "set_fallback": True})
 
 
 def plugin_unloaded():
@@ -79,19 +68,23 @@ def setSetting(key, value):
 
 
 def getLanguageList(languageName=None):
+    if languageName == None:
+        dic = []
+    elif isinstance(languageName, str):
+        dic = [languageName]
+    else:
+        dic = languageName
     languages = sublime.decode_value(sublime.load_resource('Packages/' + package_name + '/languages.json'))
     languages = [(k, languages[k]) for k in sorted(languages.keys())]
 
-    languageNameList = []
     languageList = []
     index = None
     for k, v in languages:
-        if k == languageName:
+        if languageName == None or k in dic:
             index = len(languageList)
-        languageNameList.append(k)
-        languageList.append(k + ' ' + v['name'] + ' (' + v['nativeName'] + ')')
+            languageList.append(k + ' ' + v['name'] + ' (' + v['nativeName'] + ')')
 
-    return languageNameList, languageList, index
+    return languageList, index
 
 
 def decodeEntity(xml, category='iso'):
@@ -101,10 +94,12 @@ def decodeEntity(xml, category='iso'):
     if entities[category]:
         forward, reverse = entities[category]
     else:
-        if category == 'iso':
-            forward = sublime.decode_value(sublime.load_resource('Packages/' + package_name + '/IsoEntities.json'))
-        elif category == 'html':
-            forward = sublime.decode_value(sublime.load_resource('Packages/' + package_name + '/HtmlEntities.json'))
+        resourceMap = {
+            "iso": "IsoEntities.json",
+            "html": "HtmlEntities.json",
+        }
+        forward = sublime.decode_value(sublime.load_resource('Packages/' + package_name + '/' + resourceMap[category]))
+
         reverse = dict((v, k) for k, v in forward.items())
         entities[category] = (forward, reverse)
 
@@ -249,34 +244,6 @@ def getSymbolFromHtml(symbol):
     return output
 
 
-def formatContent(content, use_panel=False, symbol=False):
-    if use_panel:
-        content = re.sub('\s+', ' ', content)
-        content = re.sub('<(br\s*/?|/p|/div|/li|(div|p)\s[^<>]*|(div|p))>', '\n', content)
-        content = re.sub('<.*?>', '', content)
-        content = re.sub('\s+\n\s*\n\s+', '\n\n', content)
-        content = re.sub('^\s+', '', content, count=1)
-        content = decodeEntity(content, 'html')
-    else:
-        if not isinstance(content, str):
-            return
-
-        to = '\\1\\2\\3<br><a href="history.back">back</a>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a href="http://php.net/manual/' + \
-            language + '/' + symbol + '.php">online</a>'
-        languages = getSetting('languages')
-        if len(languages) > 1:
-            to += '&nbsp;&nbsp;&nbsp;&nbsp;Change language:'
-            for lang in getSetting('languages'):
-                to += ' <a href="changeto.' + lang + '">' + lang + '</a>'
-        content = re.sub('(<h[1-6][^<>]*>)(.*?)(</h[1-6][^<>]*>)', to, content, count=1)
-        content = re.sub('<(/?)(blockquote|tr|li|ul|dl|dt|dd|table|tbody|thead)\\b', '<\\1div', content)
-        content = re.sub('<(/?)(td)\\b', '<\\1span', content)
-        content = re.sub('(?<=</h[1-6]>)', '<div class="horizontal-rule"></div>', content)
-        content = '<style>'+sublime.load_resource('Packages/' + package_name + '/style.css') + \
-            '</style><div id="outer"><div id="container">' + content + "</div></div>"
-    return content
-
-
 class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
     history = []
     currentSymbol = ''
@@ -295,11 +262,10 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
         view = self.view
         currentView = view
 
-        window = view.window()
         language = getSetting('language')
 
         if not language:
-            window.run_command('docphp_checkout_language')
+            view.window().run_command('docphp_checkout_language')
             return
 
         if symbol == None:
@@ -318,214 +284,246 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
             return
 
         if getSetting('use_panel') == False:
-            output = symbolDescription
-
-            if getSetting('debug'):
-                print(output)
-
-            self.currentSymbol = symbol
-
-            def on_hide():
-                self.currentSymbol = ''
-                self.history = []
-
-            def on_navigate(url):
-                if url[:4] == 'http':
-                    webbrowser.open_new(url)
-                    return True
-
-                m = re.search('changeto\.(.*)', url)
-                if m:
-                    symbol, content = getSymbolDescription(self.currentSymbol, m.group(1))
-                else:
-                    if url == 'history.back':
-                        symbol = self.history.pop()
-                        self.currentSymbol = symbol
-
-                    else:
-                        self.history.append(self.currentSymbol)
-                        symbol = url[:url.find('.html')]
-                        self.currentSymbol = symbol
-                    symbol, content = getSymbolDescription(symbol)
-
-
-                content = formatContent(content, symbol=symbol)
-
-                # It seems sublime will core when the output is too long
-                # In some cases the value can set to 76200, but we use a 65535 for safety.
-                content = content[:65535]
-                view.update_popup(content)
-
-            width, height = view.viewport_extent()
-            output = formatContent(output, symbol=symbol)
-
-            view.show_popup(
-                output,
-                flags=sublime.COOPERATE_WITH_AUTO_COMPLETE | sublime.HTML,
-                location=-1,
-                max_width=min(getSetting('popup_max_width'), width),
-                max_height=min(getSetting('popup_max_height'), height),
-                on_navigate=on_navigate,
-                on_hide=on_hide
-            )
-
-            return
+            self.show_popup(symbol, symbolDescription)
         else:
-            output = formatContent(symbolDescription, True)
-            name = 'docphp'
+            self.show_panel(symbol, symbolDescription, edit)
 
-            panel = window.get_output_panel(name)
-            window.run_command("show_panel", {"panel": "output."+name})
-            panel.set_read_only(False)
-            panel.insert(edit, panel.size(), output + '\n')
-            panel.set_read_only(True)
+    def show_popup(self, symbol, symbolDescription):
+        output = symbolDescription
 
+        if getSetting('debug'):
+            print(output)
 
-def installLanguagePopup(languageName=None, set_fallback=False, is_init=False):
-    global downloading
-    if downloading:
-        sublime.message_dialog('Another progress is working for checkout ' + downloading + '. Please try again later.')
-        return
-    languageNameList, languageList, index = getLanguageList(languageName)
+        self.currentSymbol = symbol
 
-    def updateLanguage(index=None):
-        if index == -1:
-            return
-        languageName = languageNameList[index]
-        languagePath = getDocphpPath() + 'language/' + languageName
+        width, height = self.view.viewport_extent()
+        output = self.formatPopup(output, symbol=symbol)
 
-        def checkoutLanguage():
-            global language
-            if not downloadLanguageGZ(languageName):
-                if getSetting('debug'):
-                    print('download error')
-                return False
+        # It seems sublime will core when the output is too long
+        # In some cases the value can set to 76200, but we use a 65535 for safety.
+        output = output[:65535]
 
-            setSetting('language', languageName)
-            language = languageName
-            languageSettings = currentSettings.get('languages')
+        self.view.show_popup(
+            output,
+            flags=sublime.COOPERATE_WITH_AUTO_COMPLETE | sublime.HTML,
+            location=-1,
+            max_width=min(getSetting('popup_max_width'), width),
+            max_height=min(getSetting('popup_max_height'), height),
+            on_navigate=self.on_navigate,
+            on_hide=self.on_hide
+        )
 
-            languageSettings[languageName] = 'gz'
+    def show_panel(self, symbol, symbolDescription, edit):
+        output = self.formatPanel(symbolDescription)
+        name = 'docphp'
+        window = self.view.window()
+        panel = window.get_output_panel(name)
+        window.run_command("show_panel", {"panel": "output."+name})
+        panel.set_read_only(False)
+        panel.insert(edit, panel.size(), output + '\n')
+        panel.set_read_only(True)
 
-            setSetting('languages', languageSettings)
-            if set_fallback:
-                setSetting('language_fallback', languageName)
+    def on_hide(self):
+        self.currentSymbol = ''
+        self.history = []
 
-            loadLanguage()
-
-            sublime.message_dialog('Language ' + languageName + ' is checked out')
-
-        sublime.set_timeout_async(checkoutLanguage, 0)
-    if languageName:
-        updateLanguage(index)
-    else:
-        currentView.window().show_quick_panel(languageList, updateLanguage, sublime.KEEP_OPEN_ON_FOCUS_LOST)
-
-
-def downloadLanguageGZ(name):
-    err = None
-    try:
-        url = 'http://php.net/distributions/manual/php_manual_' + name + '.tar.gz'
-
-        filename = getDocphpPath() + 'language/php_manual_' + name + '.tar.gz'
-
-        response = urlopen(url)
-        try:
-            totalsize = int(response.headers['Content-Length'])  # assume correct header
-        except NameError:
-            totalsize = None
-        except KeyError:
-            totalsize = None
-
-        outputfile = open(filename, 'wb')
-
-        readsofar = 0
-        chunksize = 8192
-        try:
-            global downloading
-            downloading = name
-            while(True):
-                # download chunk
-                data = response.read(chunksize)
-                if not data:  # finished downloading
-                    break
-                readsofar += len(data)
-                outputfile.write(data)  # save to filename
-                if totalsize:
-                    # report progress
-                    percent = readsofar * 1e2 / totalsize  # assume totalsize > 0
-                    sublime.status_message(package_name + ': %.0f%% checking out %s' % (percent, name,))
-                else:
-                    kb = readsofar / 1024
-                    sublime.status_message(package_name + ': %.0f KB checking out %s' % (kb, name,))
-        finally:
-            outputfile.close()
-            downloading = False
-        if totalsize and readsofar != totalsize:
-            return False
-        else:
+    def on_navigate(self, url):
+        if re.search('^https?://', url):
+            webbrowser.open_new(url)
             return True
 
-    except (urllib.error.HTTPError) as e:
-        err = '%s: HTTP error %s contacting API' % (__name__, str(e.code))
-    except (urllib.error.URLError) as e:
-        err = '%s: URL error %s contacting API' % (__name__, str(e.reason))
-    except Exception as e:
-        err = e.__class__.__name__
+        m = re.search('changeto\.(.*)', url)
+        if m:
+            symbol, content = getSymbolDescription(self.currentSymbol, m.group(1))
+        else:
+            if url == 'history.back':
+                symbol = self.history.pop()
+                self.currentSymbol = symbol
 
-    sublime.message_dialog('Language ' + name + ' checkout failed. Please try again.')
+            else:
+                self.history.append(self.currentSymbol)
+                symbol = url[:url.find('.html')]
+                self.currentSymbol = symbol
+            symbol, content = getSymbolDescription(symbol)
 
-    if getSetting('debug'):
-        print(err)
-    return
+        content = self.formatContent(content, symbol=symbol)
+
+        content = content[:65535]
+        self.view.update_popup(content)
+
+    def formatPopup(self, content, symbol):
+        if not isinstance(content, str):
+            return
+
+        to = '\\1\\2\\3<br><a href="history.back">back</a>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a href="http://php.net/manual/' + \
+            language + '/' + symbol + '.php">online</a>'
+        languages = getSetting('languages')
+        if len(languages) > 1:
+            to += '&nbsp;&nbsp;&nbsp;&nbsp;Change language:'
+            for lang in getSetting('languages'):
+                to += ' <a href="changeto.' + lang + '">' + lang + '</a>'
+        content = re.sub('(<h[1-6][^<>]*>)(.*?)(</h[1-6][^<>]*>)', to, content, count=1)
+        content = re.sub('<(/?)(blockquote|tr|li|ul|dl|dt|dd|table|tbody|thead)\\b', '<\\1div', content)
+        content = re.sub('<(/?)(td)\\b', '<\\1span', content)
+        content = re.sub('(?<=</h[1-6]>)', '<div class="horizontal-rule"></div>', content)
+        content = '<style>'+sublime.load_resource('Packages/' + package_name + '/style.css') + \
+            '</style><div id="outer"><div id="container">' + content + "</div></div>"
+        return content
+
+    def formatPanel(self, content):
+        if not isinstance(content, str):
+            return
+        content = re.sub('\s+', ' ', content)
+        content = re.sub('<(br\s*/?|/p|/div|/li|(div|p)\s[^<>]*|(div|p))>', '\n', content)
+        content = re.sub('<.*?>', '', content)
+        content = re.sub('\s+\n\s*\n\s+', '\n\n', content)
+        content = re.sub('^\s+', '', content, count=1)
+        content = decodeEntity(content, 'html')
+        return content
 
 
 class DocphpCheckoutLanguageCommand(sublime_plugin.TextCommand):
 
-    def run(self, edit, languageName=None):
+    languageList = None
+    languageName = None
+    downloading = False
+
+    def run(self, edit, languageName=None, set_fallback=False, is_init=False):
         view = self.view
         global currentView
         currentView = view
 
-        installLanguagePopup(languageName)
+        if self.downloading:
+            sublime.message_dialog('Another progress is working for checkout ' + self.downloading + '. Please try again later.')
+            return
+
+        self.languageList, index = getLanguageList(languageName)
+
+        if languageName:
+            self.updateLanguage(index)
+        else:
+            currentView.window().show_quick_panel(self.languageList, self.updateLanguage, sublime.KEEP_OPEN_ON_FOCUS_LOST)
+
+    def updateLanguage(self, index=None):
+        if index == -1 or index == None:
+            return
+        languageName = re.search('^\w+', self.languageList[index]).group(0)
+
+        self.languageName = languageName
+        sublime.set_timeout_async(self.checkoutLanguage, 0)
+
+    def checkoutLanguage(self):
+        global language
+        languageName = self.languageName
+        if not self.downloadLanguageGZ(languageName):
+            if getSetting('debug'):
+                print('download error')
+            return False
+
+        setSetting('language', languageName)
+        language = languageName
+        languageSettings = currentSettings.get('languages')
+
+        languageSettings[languageName] = 'gz'
+
+        setSetting('languages', languageSettings)
+        if set_fallback:
+            setSetting('language_fallback', languageName)
+
+        loadLanguage()
+
+        sublime.message_dialog('Language ' + languageName + ' is checked out')
+
+    def downloadLanguageGZ(self, name):
+        err = None
+        try:
+            url = 'http://php.net/distributions/manual/php_manual_' + name + '.tar.gz'
+
+            filename = getDocphpPath() + 'language/php_manual_' + name + '.tar.gz'
+
+            response = urlopen(url)
+            try:
+                totalsize = int(response.headers['Content-Length'])  # assume correct header
+            except NameError:
+                totalsize = None
+            except KeyError:
+                totalsize = None
+
+            outputfile = open(filename, 'wb')
+
+            readsofar = 0
+            chunksize = 8192
+            try:
+                self.downloading = name
+                while(True):
+                    # download chunk
+                    data = response.read(chunksize)
+                    if not data:  # finished downloading
+                        break
+                    readsofar += len(data)
+                    outputfile.write(data)  # save to filename
+                    if totalsize:
+                        # report progress
+                        percent = readsofar * 1e2 / totalsize  # assume totalsize > 0
+                        sublime.status_message(package_name + ': %.0f%% checking out %s' % (percent, name,))
+                    else:
+                        kb = readsofar / 1024
+                        sublime.status_message(package_name + ': %.0f KB checking out %s' % (kb, name,))
+            finally:
+                outputfile.close()
+                self.downloading = False
+            if totalsize and readsofar != totalsize:
+                return False
+            else:
+                return True
+
+        except (urllib.error.HTTPError) as e:
+            err = '%s: HTTP error %s contacting API' % (__name__, str(e.code))
+        except (urllib.error.URLError) as e:
+            err = '%s: URL error %s contacting API' % (__name__, str(e.reason))
+        except Exception as e:
+            err = e.__class__.__name__
+
+        sublime.message_dialog('Language ' + name + ' checkout failed. Please try again.')
+
+        if getSetting('debug'):
+            print(err)
+        return
 
 
 class DocphpSelectLanguageCommand(sublime_plugin.TextCommand):
+
+    languageNameList = None
 
     def run(self, edit):
         global currentView
         view = self.view
         currentView = view
 
-        languageNameListAll, languageListAll, index = getLanguageList()
         availableLanguages = getSetting('languages')
-        languageNameList = []
-        languageList = []
+        self.languageList, _ = getLanguageList(availableLanguages)
 
-        for k in availableLanguages:
-            index = languageNameListAll.index(k)
-            languageNameList.append(languageNameListAll[index])
-            languageList.append(languageListAll[index])
+        currentView.window().show_quick_panel(self.languageList, self.selectLanguageCallback)
 
-        def selectLanguageCallback(index):
-            global language
-            if index != -1:
-                language = languageNameList[index]
-                setSetting('language', language)
-                loadLanguage()
-
-        currentView.window().show_quick_panel(languageList, selectLanguageCallback)
+    def selectLanguageCallback(self, index):
+        global language
+        if index != -1:
+            language = re.search('^\w+', self.languageList[index]).group(0)
+            setSetting('language', language)
+            loadLanguage()
 
 
 class DocphpOpenManualIndexCommand(sublime_plugin.TextCommand):
 
     def run(self, edit):
+        global currentView
+        currentView = self.view
         self.view.run_command('docphp_show_definition', {"symbol": 'index', "force": True})
 
 
 class DocphpSearchCommand(sublime_plugin.TextCommand):
 
-    def run(self, edit, at_point = False):
+    def run(self, edit, at_point=False):
         global currentView
         view = self.view
         window = view.window()
@@ -552,32 +550,28 @@ class DocphpSearchCommand(sublime_plugin.TextCommand):
                 currentView.run_command('docphp_show_definition', {"symbol": files[index], "force": True})
 
         currentView.window().show_quick_panel(files, show)
-        window.run_command("insert", args= {"characters": symbol})
-
-
-def doAutoShow():
-    global delaying
-    delayTime = getSetting('auto_delay')
-    if (time.time() - prevTime) * 1000 > delayTime:
-        delaying = False
-        if not currentView.is_popup_visible():
-            currentView.run_command('docphp_show_definition')
-    else:
-        sublime.set_timeout_async(doAutoShow, int(delayTime - (time.time() - prevTime) * 1000) + 50)
+        window.run_command("insert", args={"characters": symbol})
 
 
 class DocPHPListener(sublime_plugin.EventListener):
-
-    def on_activated(self, view):
-        global currentView
-        currentView = view
+    prevTime = 0
+    delaying = False
 
     def on_selection_modified_async(self, view):
-        global prevTime, delaying
-
         if not getSetting('auto'):
             return
-        prevTime = time.time()
-        if not delaying:
-            sublime.set_timeout_async(doAutoShow, getSetting('auto_delay') + 50)
-            delaying = True
+        global currentView
+        currentView = view
+        self.prevTime = time.time()
+        if not self.delaying:
+            sublime.set_timeout_async(self.doAutoShow, getSetting('auto_delay') + 50)
+            self.delaying = True
+
+    def doAutoShow(self):
+        delayTime = getSetting('auto_delay')
+        if (time.time() - self.prevTime) * 1000 > delayTime:
+            self.delaying = False
+            if not currentView.is_popup_visible():
+                currentView.run_command('docphp_show_definition')
+        else:
+            sublime.set_timeout_async(self.doAutoShow, int(delayTime - (time.time() - self.prevTime) * 1000) + 50)
