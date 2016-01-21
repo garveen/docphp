@@ -10,3 +10,4 @@ h1,h2,h3,h4,h5,h6{color: #793862;}
 .border-gray{background-color:#d9d9d9}
 .border-pink{background-color:#eabfbf}
 .horizontal-rule{background-color: #793862;padding: 0.5px;margin-bottom: 10px}
+.doctable.informaltable{background-color: #fff}

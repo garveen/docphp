@@ -364,7 +364,7 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
                 to += ' <a href="changeto.' + lang + '">' + lang + '</a>'
         content = re.sub('(<h[1-6][^<>]*>)(.*?)(</h[1-6][^<>]*>)', to, content, count=1)
         content = re.sub('<(/?)(blockquote|tr|li|ul|dl|dt|dd|table|tbody|thead)\\b', '<\\1div', content)
-        content = re.sub('<(/?)(td)\\b', '<\\1span', content)
+        content = re.sub('<(/?)(td)\\b[^<>]*>', '', content)
         content = re.sub('(?<=</h[1-6]>)', '<div class="horizontal-rule"></div>', content)
         content = '<style>'+sublime.load_resource('Packages/' + package_name + '/style.css') + \
             '</style><div id="outer"><div id="container">' + content + "</div></div>"
