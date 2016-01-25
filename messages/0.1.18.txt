@@ -1,0 +1,10 @@
+DocPHPManualer
+==============
+
+Thank you for upgrading.
+
+Now, commands triggered by context menu can handle mouse position.In order
+
+to get this done, context menu items have pulled out from sub-menu,according
+
+to a Sublime Text's bug.
