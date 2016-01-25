@@ -1,18 +1,12 @@
 [
+    { "caption": "-", "id": "BeginDocPHPManualer" },
     {
-        "caption": "DocPHPManualer",
-        "id": "DocPHPManualer",
-        "children":
-        [
-            {
-                "command": "docphp_show_definition",
-                "caption": "Show Definition"
-            },
-            {
-                "command": "docphp_search",
-                "args": {"at_point": true},
-                "caption": "Search"
-            }
-        ]
-    }
+        "command": "docphp_show_definition",
+        "caption": "DocPHP: Show Definition"
+    },
+    {
+        "command": "docphp_search",
+        "caption": "DocPHP: Search"
+    },
+    { "caption": "-", "id": "EndDocPHPManualer" }
 ]

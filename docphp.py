@@ -6,6 +6,7 @@ import shutil
 import tarfile
 import webbrowser
 import time
+from Default import symbol as sublime_symbol
 
 from urllib.request import urlopen
 
@@ -247,6 +248,9 @@ def getSymbolFromHtml(symbol):
 class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
     history = []
     currentSymbol = ''
+    projectSymbols = []
+    window = False
+    projectView = False
 
     def is_enabled(self, **args):
         selection = self.view.sel()
@@ -257,10 +261,14 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
         else:
             return False
 
-    def run(self, edit, symbol=None, force=False):
+    def want_event(self):
+        return True
+
+    def run(self, edit, event=None, symbol=None, force=False):
         global language, currentView
         view = self.view
         currentView = view
+        pt = False
 
         language = getSetting('language')
 
@@ -269,24 +277,47 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
             return
 
         if symbol == None:
-            symbol = view.substr(view.word(view.sel()[0]))
-        symbol = symbol.replace('_', '-')
+            if(event):
+                pt = view.window_to_text((event["x"], event["y"]))
+            else:
+                pt = view.sel()[0]
+            self.pt = pt
+            symbol, locations = sublime_symbol.symbol_at_point(view, pt)
+
+        translatedSymbol = symbol.replace('_', '-')
 
         # symbol = 'basename'
 
-        symbol, symbolDescription = getSymbolDescription(symbol)
+        translatedSymbol, symbolDescription = getSymbolDescription(translatedSymbol)
 
         if symbolDescription == None:
+            if self.search_in_scope(symbol):
+                return
+            if getSetting('search_user_symbols' and len(locations)):
+                sublime_symbol.navigate_to_symbol(view, symbol, locations)
+                return
             if getSetting('prompt_when_not_found'):
                 view.show_popup('not found', sublime.COOPERATE_WITH_AUTO_COMPLETE)
-            return
+                return
         if symbolDescription == False:
             return
 
         if getSetting('use_panel') == False:
-            self.show_popup(symbol, symbolDescription)
+            self.show_popup(translatedSymbol, symbolDescription)
         else:
-            self.show_panel(symbol, symbolDescription, edit)
+            self.show_panel(translatedSymbol, symbolDescription, edit)
+
+    def search_in_scope(self, symbol):
+        search_str = self.view.substr(self.view.line(self.pt))
+        if re.search("(\$this\s*->|self\s*::|static\s*::)\s*" + re.escape(symbol), search_str) != None:
+            lower = symbol.lower()
+            for scopeSymbol in self.view.symbols():
+                if scopeSymbol[1].lower() == lower:
+                    self.view.sel().clear()
+                    self.view.sel().add(scopeSymbol[0])
+                    self.view.show(scopeSymbol[0])
+                    return True
+        return False
 
     def show_popup(self, symbol, symbolDescription):
         output = symbolDescription
@@ -523,7 +554,10 @@ class DocphpOpenManualIndexCommand(sublime_plugin.TextCommand):
 
 class DocphpSearchCommand(sublime_plugin.TextCommand):
 
-    def run(self, edit, at_point=False):
+    def want_event(self):
+        return True
+
+    def run(self, edit, event=None, at_point=False):
         global currentView
         view = self.view
         window = view.window()
@@ -549,8 +583,17 @@ class DocphpSearchCommand(sublime_plugin.TextCommand):
             if index != -1:
                 currentView.run_command('docphp_show_definition', {"symbol": files[index], "force": True})
 
-        currentView.window().show_quick_panel(files, show)
-        window.run_command("insert", args={"characters": symbol})
+        selected_index = -1
+        if(event):
+            pt = view.window_to_text((event["x"], event["y"]))
+            symbol, locations = sublime_symbol.symbol_at_point(view, pt)
+            for prefix in ['function.', 'book.', 'class.']:
+                try:
+                    selected_index = files.index(prefix + symbol)
+                    break
+                except ValueError:
+                    pass
+        currentView.window().show_quick_panel(files, show, selected_index=selected_index)
 
 
 class DocPHPListener(sublime_plugin.EventListener):

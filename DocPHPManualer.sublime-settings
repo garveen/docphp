@@ -8,6 +8,9 @@
 	// Debug mode
 	"debug": false,
 
+	// Search user defined symbols
+	"search_user_symbols": true,
+
 	// Select language
 	"language": false,
 
