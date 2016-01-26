@@ -293,7 +293,7 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
         if symbolDescription == None:
             if self.search_in_scope(symbol):
                 return
-            if getSetting('search_user_symbols' and len(locations)):
+            if getSetting('search_user_symbols') and len(locations):
                 sublime_symbol.navigate_to_symbol(view, symbol, locations)
                 return
             if getSetting('prompt_when_not_found'):
