@@ -377,7 +377,7 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
                 self.currentSymbol = symbol
             symbol, content = getSymbolDescription(symbol)
 
-        content = self.formatContent(content, symbol=symbol)
+        content = self.formatPopup(content, symbol=symbol)
 
         content = content[:65535]
         self.view.update_popup(content)
