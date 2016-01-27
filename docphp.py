@@ -508,15 +508,8 @@ class DocphpCheckoutLanguageCommand(sublime_plugin.TextCommand):
                 self.downloading = False
                 if totalsize and readsofar != totalsize:
                     os.unlink(filename)
-                    return False
-                else:
-                    if os.path.isdir(getI18nCachePath(name)):
-                        shutil.rmtree(getI18nCachePath(name))
-                    newname = getDocphpPath() + 'language/php_manual_' + name + '.tar.gz'
-                    if os.path.isfile(newname):
-                        os.unlink(newname)
-                    os.rename(filename, newname)
-                    return True
+                    err = 'Download failed'
+
 
         except (urllib.error.HTTPError) as e:
             err = '%s: HTTP error %s contacting API' % (__name__, str(e.code))
@@ -525,10 +518,19 @@ class DocphpCheckoutLanguageCommand(sublime_plugin.TextCommand):
         except Exception as e:
             err = e.__class__.__name__
 
-        sublime.message_dialog('Language ' + name + ' checkout failed. Please try again.')
+        if not err:
+            if os.path.isdir(getI18nCachePath(name)):
+                shutil.rmtree(getI18nCachePath(name))
+            newname = getDocphpPath() + 'language/php_manual_' + name + '.tar.gz'
+            if os.path.isfile(newname):
+                os.unlink(newname)
+            os.rename(filename, newname)
+            return True
 
         print(err)
-        return
+        sublime.message_dialog('Language ' + name + ' checkout failed. Please try again.')
+
+        return False
 
 
 class DocphpSelectLanguageCommand(sublime_plugin.TextCommand):
