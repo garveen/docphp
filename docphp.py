@@ -243,12 +243,12 @@ def getSymbolFromHtml(symbol):
 
     output = re.sub('[\s\S]+?(<div[^<>]+?id="'+re.escape(symbol)+'"[\s\S]+?)<div[^<>]+?class="manualnavbar[\s\S]+', '\\1', output)
     dic = {
-        '&mdash;': '--',
-        '&quot;': "'",
+        '&mdash;': chr(8212),
+        '&quot;': '"',
         '<br>': '',
         '&#039;': "'",
         '&$': "&amp;$",
-        '&raquo;': '>>',
+        '&raquo;': chr(187),
     }
     pattern = "|".join(map(re.escape, dic.keys()))
 
