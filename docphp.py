@@ -6,9 +6,8 @@ import shutil
 import tarfile
 import webbrowser
 import time
+import urllib
 from Default import symbol as sublime_symbol
-
-from urllib.request import urlopen
 
 package_name = 'DocPHPManualer'
 setting_file = package_name + '.sublime-settings'
@@ -125,8 +124,10 @@ def getTarGzPath():
     return getDocphpPath() + 'language/php_manual_' + language + '.tar.gz'
 
 
-def getI18nCachePath():
-    return getDocphpPath() + 'language/' + language + '/'
+def getI18nCachePath(languageName = None):
+    if not languageName:
+        languageName = language
+    return getDocphpPath() + 'language/' + languageName + '/'
 
 
 def getTarHandler():
@@ -418,6 +419,7 @@ class DocphpCheckoutLanguageCommand(sublime_plugin.TextCommand):
     languageList = None
     languageName = None
     downloading = False
+    set_fallback = None
 
     def run(self, edit, languageName=None, set_fallback=False, is_init=False):
         view = self.view
@@ -429,6 +431,7 @@ class DocphpCheckoutLanguageCommand(sublime_plugin.TextCommand):
             return
 
         self.languageList, index = getLanguageList(languageName)
+        self.set_fallback = set_fallback
 
         if languageName:
             self.updateLanguage(index)
@@ -458,7 +461,7 @@ class DocphpCheckoutLanguageCommand(sublime_plugin.TextCommand):
         languageSettings[languageName] = 'gz'
 
         setSetting('languages', languageSettings)
-        if set_fallback:
+        if self.set_fallback:
             setSetting('language_fallback', languageName)
 
         loadLanguage()
@@ -470,9 +473,9 @@ class DocphpCheckoutLanguageCommand(sublime_plugin.TextCommand):
         try:
             url = 'http://php.net/distributions/manual/php_manual_' + name + '.tar.gz'
 
-            filename = getDocphpPath() + 'language/php_manual_' + name + '.tar.gz'
+            filename = getDocphpPath() + 'language/php_manual_' + name + '.tar.gz.downloading'
 
-            response = urlopen(url)
+            response = urllib.request.urlopen(url)
             try:
                 totalsize = int(response.headers['Content-Length'])  # assume correct header
             except NameError:
@@ -503,10 +506,17 @@ class DocphpCheckoutLanguageCommand(sublime_plugin.TextCommand):
             finally:
                 outputfile.close()
                 self.downloading = False
-            if totalsize and readsofar != totalsize:
-                return False
-            else:
-                return True
+                if totalsize and readsofar != totalsize:
+                    os.unlink(filename)
+                    return False
+                else:
+                    if os.path.isdir(getI18nCachePath(name)):
+                        shutil.rmtree(getI18nCachePath(name))
+                    newname = getDocphpPath() + 'language/php_manual_' + name + '.tar.gz'
+                    if os.path.isfile(newname):
+                        os.unlink(newname)
+                    os.rename(filename, newname)
+                    return True
 
         except (urllib.error.HTTPError) as e:
             err = '%s: HTTP error %s contacting API' % (__name__, str(e.code))
@@ -517,8 +527,7 @@ class DocphpCheckoutLanguageCommand(sublime_plugin.TextCommand):
 
         sublime.message_dialog('Language ' + name + ' checkout failed. Please try again.')
 
-        if getSetting('debug'):
-            print(err)
+        print(err)
         return
 
 
