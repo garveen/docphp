@@ -124,7 +124,7 @@ def getTarGzPath():
     return getDocphpPath() + 'language/php_manual_' + language + '.tar.gz'
 
 
-def getI18nCachePath(languageName = None):
+def getI18nCachePath(languageName=None):
     if not languageName:
         languageName = language
     return getDocphpPath() + 'language/' + languageName + '/'
@@ -185,19 +185,30 @@ def getJsonOrGenerate(name, callback):
     return content
 
 
+def languageExists(languageName=None, fallback=False):
+    if not languageName:
+        languageName = language
+    if not language:
+        currentView.run_command('docphp_checkout_language', {"is_init": True, "set_fallback": True})
+        return False
+    if languageName not in docphp_languages and not loadLanguage():
+        if fallback:
+            begin = 'The fallback'
+        else:
+            begin = 'The'
+        sublime.error_message(begin + ' language "' + languageName +
+                              '" has not yet installed.\nYou can use\n\n   DocPHP: checkout language\n\ncommand to checkout a language pack.')
+        return False
+    return True
+
+
 def getSymbolDescription(symbol, use_language=False, fallback=False):
     if not use_language:
         global language
     else:
         language = use_language
 
-    if language not in docphp_languages and not loadLanguage():
-        if fallback:
-            begin = 'The fallback'
-        else:
-            begin = 'The'
-        sublime.error_message(
-            begin + ' language "' + language + '" has not yet installed.\nYou can use\n\n   DocPHP: checkout language\n\ncommand to checkout a language pack.')
+    if not languageExists(language, fallback):
         return None, False
 
     symbol = symbol.lower()
@@ -510,7 +521,6 @@ class DocphpCheckoutLanguageCommand(sublime_plugin.TextCommand):
                     os.unlink(filename)
                     err = 'Download failed'
 
-
         except (urllib.error.HTTPError) as e:
             err = '%s: HTTP error %s contacting API' % (__name__, str(e.code))
         except (urllib.error.URLError) as e:
@@ -573,8 +583,7 @@ class DocphpSearchCommand(sublime_plugin.TextCommand):
         view = self.view
         window = view.window()
         currentView = view
-        if not language:
-            window.run_command('docphp_checkout_language')
+        if not languageExists():
             return
         tar = getTarHandler()
         symbol = None
