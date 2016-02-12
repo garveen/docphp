@@ -8,6 +8,7 @@ import webbrowser
 import time
 import urllib
 from Default import symbol as sublime_symbol
+from html.parser import HTMLParser
 
 package_name = 'DocPHPManualer'
 setting_file = package_name + '.sublime-settings'
@@ -228,7 +229,6 @@ def getSymbolDescription(symbol, use_language=False, fallback=False):
     elif symbol not in docphp_languages[language]["definition"]:
         output = getSymbolFromHtml(symbol)
 
-        output = decodeEntity(output)
         docphp_languages[language]["definition"][symbol] = output
     return symbol, docphp_languages[language]["definition"][symbol]
 
@@ -241,7 +241,6 @@ def getSymbolFromHtml(symbol):
     f = tar.extractfile(member)
     output = f.read().decode(errors='ignore')
 
-    output = re.sub('[\s\S]+?(<div[^<>]+?id="'+re.escape(symbol)+'"[\s\S]+?)<div[^<>]+?class="manualnavbar[\s\S]+', '\\1', output)
     dic = {
         '&mdash;': chr(8212),
         '&quot;': '"',
@@ -389,26 +388,26 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
                 self.currentSymbol = symbol
             symbol, content = getSymbolDescription(symbol)
 
-        content = self.formatPopup(content, symbol=symbol)
+        content = self.formatPopup(content, symbol=symbol, can_back=len(self.history) > 0)
 
         content = content[:65535]
         self.view.update_popup(content)
 
-    def formatPopup(self, content, symbol):
+    def formatPopup(self, content, symbol, can_back=False):
         if not isinstance(content, str):
             return
 
-        to = '\\1\\2\\3<br><a href="history.back">back</a>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a href="http://php.net/manual/' + \
-            language + '/' + symbol + '.php">online</a>'
-        languages = getSetting('languages')
-        if len(languages) > 1:
-            to += '&nbsp;&nbsp;&nbsp;&nbsp;Change language:'
-            for lang in getSetting('languages'):
-                to += ' <a href="changeto.' + lang + '">' + lang + '</a>'
-        content = re.sub('(<h[1-6][^<>]*>)(.*?)(</h[1-6][^<>]*>)', to, content, count=1)
-        content = re.sub('<(/?)(blockquote|tr|li|ul|dl|dt|dd|table|tbody|thead)\\b', '<\\1div', content)
-        content = re.sub('<(/?)(td)\\b[^<>]*>', '', content)
-        content = re.sub('(?<=</h[1-6]>)', '<div class="horizontal-rule"></div>', content)
+        content = decodeEntity(content)
+
+        parser = MyHTMLParser()
+        parser.symbol = symbol
+        parser.language = language
+        parser.can_back = can_back
+        try:
+            parser.feed(content)
+        except FinishError:
+            pass
+        content = parser.output
         content = '<style>'+sublime.load_resource('Packages/' + package_name + '/style.css') + \
             '</style><div id="outer"><div id="container">' + content + "</div></div>"
         return content
@@ -423,6 +422,97 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
         content = re.sub('^\s+', '', content, count=1)
         content = decodeEntity(content, 'html')
         return content
+
+
+class MyHTMLParser(HTMLParser):
+    symbol = ''
+    language = ''
+    can_back = False
+    stack = []
+    output = ''
+    as_div = ['blockquote', 'tr', 'li', 'ul', 'dl', 'dt', 'dd', 'table', 'tbody', 'thead']
+    strip = ['td']
+    started = False
+    navigate_rendered = False
+    navigate_up = ''
+
+    def handle_starttag(self, tag, attrs):
+        if(tag in self.as_div):
+            tag = 'div'
+        if(tag in self.strip):
+            return
+        for k, v in attrs:
+            if(k == 'id' and v == self.symbol):
+                self.output = ''
+            if(k == 'class' and v == 'up'):
+                self.output = ''
+
+        self.stack.append({'tag': tag, 'attrs': attrs})
+        if self.shall_border(tag, attrs):
+            self.output += '<div class="border">'
+        self.output += self.get_tag_text(tag, attrs)
+
+    def handle_endtag(self, tag):
+        if(tag in self.as_div):
+            tag = 'div'
+        if(tag in self.strip):
+            return
+        try:
+            while(True):
+                previous = self.stack.pop()
+                self.output += '</' + tag + '>'
+
+                if(re.search('h[1-6]', tag)):
+                    self.output += '<div class="horizontal-rule"></div>'
+                    if(not self.navigate_rendered):
+                        self.navigate_rendered = True
+                        self.output += ('<a href="history.back">back</a>' if self.can_back else 'back') + '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a href="http://php.net/manual/' + \
+                            self.language + '/' + self.symbol + '.php">online</a>' + \
+                            '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;' + re.sub('.*?(<a.*?</a>).*', '\\1', self.navigate_up)
+                        languages = getSetting('languages')
+                        if len(languages) > 1:
+                            self.output += '&nbsp;&nbsp;&nbsp;&nbsp;Change language:'
+                            for lang in languages:
+                                self.output += ' <a href="changeto.' + lang + '">' + lang + '</a>'
+
+                if self.shall_border(previous['tag'], previous['attrs']):
+                    self.output += '</div>'
+                for k, v in previous['attrs']:
+                    if(k == 'id' and v == self.symbol):
+                        raise FinishError
+                    if(k == 'class' and v == 'up'):
+                        self.navigate_up = self.output
+                if(tag == previous['tag']):
+                    break
+
+        except IndexError:
+            pass
+
+    def handle_startendtag(self, tag, attrs):
+        if(tag in self.as_div):
+            tag = 'div'
+        self.output += self.get_tag_text(tag, attrs, True)
+
+    def handle_data(self, data):
+        self.output += data
+        pass
+
+    def handle_entityref(self, name):
+        self.output += '&' + name + ';'
+
+    def handle_charref(self, name):
+        self.output += '&' + name + ';'
+
+    def shall_border(self, tag, attrs):
+        if tag.lower() not in ['div', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
+            return False
+        for k, v in attrs:
+            if(k == 'class' and re.search('\\b(phpcode|classsynopsis|note|warning|informaltable)\\b', v)):
+                return True
+        return False
+
+    def get_tag_text(self, tag, attrs, is_startend=False):
+        return '<' + tag + ' ' + ' '.join(map(lambda m: m[0] + '="' + re.sub('(?<!\\\\)"', '\\"', m[1]) + '"', attrs)) + (' />' if is_startend else '>')
 
 
 class DocphpCheckoutLanguageCommand(sublime_plugin.TextCommand):
@@ -638,3 +728,9 @@ class DocPHPListener(sublime_plugin.EventListener):
                 currentView.run_command('docphp_show_definition')
         else:
             sublime.set_timeout_async(self.doAutoShow, int(delayTime - (time.time() - self.prevTime) * 1000) + 50)
+
+
+class FinishError(Exception):
+
+    """For stopping the HTMLParser"""
+    pass

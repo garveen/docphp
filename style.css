@@ -2,7 +2,8 @@
 #container{margin:10px}
 .warning{background-color:#F4DFDF;padding:10px}
 .methodsynopsis{color:#737373;}
-.phpcode,.dc-description,.note{background-color:#fff;padding:10px;border-color: #d9d9d9;}
+.phpcode,.note{background-color:#fff;padding:10px}
+.classsynopsis{background-color:#fff}
 .type,.parameter{color: #693}
 .methodname{color:#369;}
 code.parameter{color:#369;}
@@ -11,3 +12,4 @@ h1,h2,h3,h4,h5,h6{color: #793862;}
 .border-pink{background-color:#eabfbf}
 .horizontal-rule{background-color: #793862;padding: 0.5px;margin-bottom: 10px}
 .doctable.informaltable{background-color: #fff}
+.border{background-color: #d9d9d9;padding:1;}
