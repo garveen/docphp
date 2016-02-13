@@ -1,8 +1,11 @@
-#outer{background-color:#f2f2f2}
-#container{margin:10px}
+#outer{background-color:#f2f2f2;}
+#container{margin:10px;width:100px;}
 .warning{background-color:#F4DFDF;padding:10px}
 .methodsynopsis{color:#737373;}
-.phpcode,.note{background-color:#fff;padding:10px}
+.phpcode,.note,.tip{padding:10px}
+.phpcode{background-color:#fff}
+.note{background-color:#E6E6E6}
+.tip{background-color:#D9E6F2}
 .classsynopsis{background-color:#fff}
 .type,.parameter{color: #693}
 .methodname{color:#369;}

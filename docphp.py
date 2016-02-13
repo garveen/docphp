@@ -530,12 +530,12 @@ class PopupHTMLParser(HTMLParser):
         if tag.lower() not in ['div', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
             return False
         for k, v in attrs:
-            if(k == 'class' and re.search('\\b(phpcode|classsynopsis|note|warning|informaltable)\\b', v)):
+            if(k == 'class' and re.search('\\b(phpcode|classsynopsis|note|warning|informaltable|tip)\\b', v)):
                 return True
         return False
 
     def get_tag_text(self, tag, attrs, is_startend=False):
-        return '<' + tag + ' ' + ' '.join(map(lambda m: m[0] + '="' + re.sub('(?<!\\\\)"', '\\"', m[1]) + '"', attrs)) + (' />' if is_startend else '>')
+        return '<' + (tag + ' ' + ' '.join(map(lambda m: m[0] + '="' + re.sub('(?<!\\\\)"', '\\"', m[1]) + '"', attrs))).rstrip() + (' />' if is_startend else '>')
 
 
 class DocphpCheckoutLanguageCommand(sublime_plugin.TextCommand):
