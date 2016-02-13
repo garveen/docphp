@@ -8,16 +8,16 @@
         "nativeName": "English"
     },
     "es": {
-        "name": "Spanish; Castilian",
-        "nativeName": "español, castellano"
+        "name": "Spanish",
+        "nativeName": "Español"
     },
     "fr": {
         "name": "French",
-        "nativeName": "français, langue française"
+        "nativeName": "Français"
     },
     "ja": {
         "name": "Japanese",
-        "nativeName": "日本語 (にほんご／にっぽんご)"
+        "nativeName": "日本語"
     },
     "kr": {
         "name": "Korean",
@@ -28,12 +28,12 @@
         "nativeName": "Português do Brasil"
     },
     "ro": {
-        "name": "Romanian, Moldavian, Moldovan",
-        "nativeName": "română"
+        "name": "Romanian",
+        "nativeName": "Română"
     },
     "ru": {
         "name": "Russian",
-        "nativeName": "русский язык"
+        "nativeName": "Pусский язык"
     },
     "tr": {
         "name": "Turkish",
@@ -41,6 +41,6 @@
     },
     "zh": {
         "name": "Simplified Chinese",
-        "nativeName": "大陆简体"
+        "nativeName": "简体中文"
     }
 }
