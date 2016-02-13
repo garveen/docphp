@@ -39,8 +39,8 @@ DocPHPManualer will generate cache files, which usually located at SUBLIME_PATH/
 	"languages": {},
 
 	// Max height and width of popup
-	"popup_max_height": 480,
-	"popup_max_width": 640,
+	"popup_max_height": 1080,
+	"popup_max_width": 1280,
 
 	// Prompt "not found" when symbol not found
 	"prompt_when_not_found": true,
