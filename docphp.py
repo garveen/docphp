@@ -67,11 +67,13 @@ def setSetting(key, value):
     currentSettings.set(key, value)
     sublime.save_settings(setting_file)
 
+
 def getAllLanguages():
     return sublime.decode_value(sublime.load_resource('Packages/' + package_name + '/languages.json'))
 
+
 def getLanguageList(languageName=None, format='all', getAll=True):
-    if(not getAll):
+    if not getAll:
         languageName = getSetting('languages')
 
     if languageName == None:
@@ -88,13 +90,13 @@ def getLanguageList(languageName=None, format='all', getAll=True):
     for k, v in languages:
         if languageName == None or k in dic:
             index = len(languageList)
-            if(format == 'all'):
+            if format == 'all':
                 languageList.append(k + ' ' + v['name'] + ' (' + v['nativeName'] + ')')
-            elif(format == 'name'):
+            elif format == 'name':
                 languageList.append(v['name'])
-            elif(format == 'nativeName'):
+            elif format == 'nativeName':
                 languageList.append(v['nativeName'])
-            elif(format == 'raw'):
+            elif format == 'raw':
                 v['shortName'] = k
                 languageList.append(v)
 
@@ -303,7 +305,7 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
             return
 
         if symbol == None:
-            if(event):
+            if event:
                 pt = view.window_to_text((event["x"], event["y"]))
             else:
                 pt = view.sel()[0]
@@ -403,7 +405,7 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
                 self.currentSymbol = symbol
             symbol, content = getSymbolDescription(symbol)
 
-        if(content == False):
+        if content == False:
             return False
 
         content = self.formatPopup(content, symbol=symbol, can_back=len(self.history) > 0)
@@ -458,16 +460,15 @@ class PopupHTMLParser(HTMLParser):
         self.can_back = can_back
         super().__init__()
 
-
     def handle_starttag(self, tag, attrs):
-        if(tag in self.as_div):
+        if tag in self.as_div:
             tag = 'div'
-        if(tag in self.strip):
+        if tag in self.strip:
             return
         for k, v in attrs:
-            if(k == 'id' and v == self.symbol):
+            if k == 'id' and v == self.symbol:
                 self.output = ''
-            if(k == 'class' and v == 'up'):
+            if k == 'class' and v == 'up':
                 self.output = ''
 
         self.stack.append({'tag': tag, 'attrs': attrs})
@@ -476,18 +477,18 @@ class PopupHTMLParser(HTMLParser):
         self.output += self.get_tag_text(tag, attrs)
 
     def handle_endtag(self, tag):
-        if(tag in self.as_div):
+        if tag in self.as_div:
             tag = 'div'
-        if(tag in self.strip):
+        if tag in self.strip:
             return
         try:
             while(True):
                 previous = self.stack.pop()
                 self.output += '</' + tag + '>'
 
-                if(re.search('h[1-6]', tag)):
+                if re.search('h[1-6]', tag):
                     self.output += '<div class="horizontal-rule"></div>'
-                    if(not self.navigate_rendered):
+                    if not self.navigate_rendered:
                         self.navigate_rendered = True
                         self.output += ('<a href="history.back">back</a>' if self.can_back else 'back') + '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a href="http://php.net/manual/' + \
                             self.language + '/' + self.symbol + '.php">online</a>' + \
@@ -501,18 +502,18 @@ class PopupHTMLParser(HTMLParser):
                 if self.shall_border(previous['tag'], previous['attrs']):
                     self.output += '</div>'
                 for k, v in previous['attrs']:
-                    if(k == 'id' and v == self.symbol):
+                    if k == 'id' and v == self.symbol:
                         raise FinishError
-                    if(k == 'class' and v == 'up'):
+                    if k == 'class' and v == 'up':
                         self.navigate_up = self.output
-                if(tag == previous['tag']):
+                if tag == previous['tag']:
                     break
 
         except IndexError:
             pass
 
     def handle_startendtag(self, tag, attrs):
-        if(tag in self.as_div):
+        if tag in self.as_div:
             tag = 'div'
         self.output += self.get_tag_text(tag, attrs, True)
 
@@ -530,7 +531,7 @@ class PopupHTMLParser(HTMLParser):
         if tag.lower() not in ['div', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
             return False
         for k, v in attrs:
-            if(k == 'class' and re.search('\\b(phpcode|classsynopsis|note|warning|informaltable|tip)\\b', v)):
+            if k == 'class' and re.search('\\b(phpcode|classsynopsis|methodsynopsis|note|warning|informaltable|tip)\\b', v):
                 return True
         return False
 
@@ -716,7 +717,7 @@ class DocphpSearchCommand(sublime_plugin.TextCommand):
                 currentView.run_command('docphp_show_definition', {"symbol": files[index], "force": True})
 
         selected_index = -1
-        if(event):
+        if event:
             pt = view.window_to_text((event["x"], event["y"]))
             symbol, locations = sublime_symbol.symbol_at_point(view, pt)
             for prefix in ['function.', 'book.', 'class.']:
