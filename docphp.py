@@ -460,20 +460,36 @@ class PopupHTMLParser(HTMLParser):
         self.can_back = can_back
         super().__init__()
 
-    def handle_starttag(self, tag, attrs):
-        if tag in self.as_div:
-            tag = 'div'
-        if tag in self.strip:
-            return
+    def parseAttrs(self, attrs):
+        ret = {}
         for k, v in attrs:
+            ret[k] = v
+        return ret
+
+
+    def handle_starttag(self, tag, attrs):
+        attrs = self.parseAttrs(attrs)
+
+        for k in attrs:
+            v = attrs[k]
             if k == 'id' and v == self.symbol:
                 self.output = ''
             if k == 'class' and v == 'up':
                 self.output = ''
 
+        if tag in self.as_div:
+            if 'class' in attrs:
+                attrs['class'] += ' ' + tag
+            else:
+                attrs['class'] = tag
+            tag = 'div'
+        if tag in self.strip:
+            return
+
         self.stack.append({'tag': tag, 'attrs': attrs})
-        if self.shall_border(tag, attrs):
-            self.output += '<div class="border">'
+        border = self.shall_border(tag, attrs)
+        if border:
+            self.output += '<div class="border border-' + border + '">'
         self.output += self.get_tag_text(tag, attrs)
 
     def handle_endtag(self, tag):
@@ -501,7 +517,8 @@ class PopupHTMLParser(HTMLParser):
 
                 if self.shall_border(previous['tag'], previous['attrs']):
                     self.output += '</div>'
-                for k, v in previous['attrs']:
+                for k in previous['attrs']:
+                    v = previous['attrs'][k]
                     if k == 'id' and v == self.symbol:
                         raise FinishError
                     if k == 'class' and v == 'up':
@@ -514,6 +531,10 @@ class PopupHTMLParser(HTMLParser):
 
     def handle_startendtag(self, tag, attrs):
         if tag in self.as_div:
+            if 'class' in attrs:
+                attrs['class'] += ' ' + tag
+            else:
+                attrs['class'] = tag
             tag = 'div'
         self.output += self.get_tag_text(tag, attrs, True)
 
@@ -530,13 +551,17 @@ class PopupHTMLParser(HTMLParser):
     def shall_border(self, tag, attrs):
         if tag.lower() not in ['div', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
             return False
-        for k, v in attrs:
-            if k == 'class' and re.search('\\b(phpcode|classsynopsis|methodsynopsis|note|warning|informaltable|tip)\\b', v):
-                return True
+        for k in attrs:
+            v = attrs[k]
+            if k == 'class':
+                if re.search('\\b(phpcode|classsynopsis|methodsynopsis|note|informaltable|tip)\\b', v):
+                    return 'gray'
+                elif re.search('\\b(warning)\\b', v):
+                    return 'pink'
         return False
 
     def get_tag_text(self, tag, attrs, is_startend=False):
-        return '<' + (tag + ' ' + ' '.join(map(lambda m: m[0] + '="' + re.sub('(?<!\\\\)"', '\\"', m[1]) + '"', attrs))).rstrip() + (' />' if is_startend else '>')
+        return '<' + (tag + ' ' + ' '.join(map(lambda m: m + '="' + re.sub('(?<!\\\\)"', '\\"', attrs[m]) + '"', attrs))).rstrip() + (' />' if is_startend else '>')
 
 
 class DocphpCheckoutLanguageCommand(sublime_plugin.TextCommand):
