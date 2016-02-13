@@ -4,7 +4,7 @@
 
 show the document of current function on Sublime Text
 
-<img src="https://raw.github.com/acabin/docphp/screenshots/screenshots/popup.png" alt="Popup manual" width="1016">
+<img src="https://raw.github.com/acabin/docphp/screenshots/screenshots/popup.png" alt="Popup manual" width="840">
 
 ### Usage
 
