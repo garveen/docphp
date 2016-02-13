@@ -1,18 +1,16 @@
 #outer{background-color:#f2f2f2;}
-#container{margin:10px;width:100px;}
-.warning{background-color:#F4DFDF;padding:10px}
-.methodsynopsis{color:#737373;}
-.phpcode,.note,.tip{padding:10px}
-.phpcode{background-color:#fff}
-.note{background-color:#E6E6E6}
+#container{margin:10px}
+.phpcode,.note,.tip,.classsynopsis,.methodsynopsis,.warning,.informaltable{padding:10px}
+.phpcode,.note,.classsynopsis,.methodsynopsis,.doctable.informaltable{background-color:#fff}
 .tip{background-color:#D9E6F2}
-.classsynopsis{background-color:#fff}
-.type,.parameter{color: #693}
+.warning{background-color:#F4DFDF}
+.methodsynopsis{color:#737373;}
+span.type,.parameter{color: #693}
 .methodname{color:#369;}
 code.parameter{color:#369;}
 h1,h2,h3,h4,h5,h6{color: #793862;}
+.horizontal-rule{background-color: #793862;padding: 0.5px;margin-bottom: 10px}
+.border{padding:1;margin:10px 0;}
 .border-gray{background-color:#d9d9d9}
 .border-pink{background-color:#eabfbf}
-.horizontal-rule{background-color: #793862;padding: 0.5px;margin-bottom: 10px}
-.doctable.informaltable{background-color: #fff}
-.border{background-color: #d9d9d9;padding:1;}
+.dd{margin-left: 1.5em}
