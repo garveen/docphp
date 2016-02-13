@@ -67,23 +67,36 @@ def setSetting(key, value):
     currentSettings.set(key, value)
     sublime.save_settings(setting_file)
 
+def getAllLanguages():
+    return sublime.decode_value(sublime.load_resource('Packages/' + package_name + '/languages.json'))
 
-def getLanguageList(languageName=None):
+def getLanguageList(languageName=None, format='all', getAll=True):
+    if(not getAll):
+        languageName = getSetting('languages')
+
     if languageName == None:
         dic = []
     elif isinstance(languageName, str):
         dic = [languageName]
     else:
         dic = languageName
-    languages = sublime.decode_value(sublime.load_resource('Packages/' + package_name + '/languages.json'))
-    languages = [(k, languages[k]) for k in sorted(languages.keys())]
 
+    languages = getAllLanguages()
+    languages = [(k, languages[k]) for k in sorted(languages.keys())]
     languageList = []
     index = None
     for k, v in languages:
         if languageName == None or k in dic:
             index = len(languageList)
-            languageList.append(k + ' ' + v['name'] + ' (' + v['nativeName'] + ')')
+            if(format == 'all'):
+                languageList.append(k + ' ' + v['name'] + ' (' + v['nativeName'] + ')')
+            elif(format == 'name'):
+                languageList.append(v['name'])
+            elif(format == 'nativeName'):
+                languageList.append(v['nativeName'])
+            elif(format == 'raw'):
+                v['shortName'] = k
+                languageList.append(v)
 
     return languageList, index
 
@@ -197,7 +210,9 @@ def languageExists(languageName=None, fallback=False):
             begin = 'The fallback'
         else:
             begin = 'The'
-        sublime.error_message(begin + ' language "' + languageName +
+        print(getAllLanguages())
+        show_name = getAllLanguages()[languageName]['name']
+        sublime.error_message(begin + ' language "' + show_name +
                               '" has not yet installed.\nYou can use\n\n   DocPHP: checkout language\n\ncommand to checkout a language pack.')
         return False
     return True
@@ -388,6 +403,9 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
                 self.currentSymbol = symbol
             symbol, content = getSymbolDescription(symbol)
 
+        if(content == False):
+            return False
+
         content = self.formatPopup(content, symbol=symbol, can_back=len(self.history) > 0)
 
         content = content[:65535]
@@ -399,10 +417,7 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
 
         content = decodeEntity(content)
 
-        parser = MyHTMLParser()
-        parser.symbol = symbol
-        parser.language = language
-        parser.can_back = can_back
+        parser = PopupHTMLParser(symbol, language, can_back)
         try:
             parser.feed(content)
         except FinishError:
@@ -415,6 +430,7 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
     def formatPanel(self, content):
         if not isinstance(content, str):
             return
+        content = decodeEntity(content)
         content = re.sub('\s+', ' ', content)
         content = re.sub('<(br\s*/?|/p|/div|/li|(div|p)\s[^<>]*|(div|p))>', '\n', content)
         content = re.sub('<.*?>', '', content)
@@ -424,7 +440,7 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
         return content
 
 
-class MyHTMLParser(HTMLParser):
+class PopupHTMLParser(HTMLParser):
     symbol = ''
     language = ''
     can_back = False
@@ -435,6 +451,13 @@ class MyHTMLParser(HTMLParser):
     started = False
     navigate_rendered = False
     navigate_up = ''
+
+    def __init__(self, symbol, language, can_back):
+        self.symbol = symbol
+        self.language = language
+        self.can_back = can_back
+        super().__init__()
+
 
     def handle_starttag(self, tag, attrs):
         if(tag in self.as_div):
@@ -469,11 +492,11 @@ class MyHTMLParser(HTMLParser):
                         self.output += ('<a href="history.back">back</a>' if self.can_back else 'back') + '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a href="http://php.net/manual/' + \
                             self.language + '/' + self.symbol + '.php">online</a>' + \
                             '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;' + re.sub('.*?(<a.*?</a>).*', '\\1', self.navigate_up)
-                        languages = getSetting('languages')
+                        languages, _ = getLanguageList(format='raw', getAll=False)
                         if len(languages) > 1:
                             self.output += '&nbsp;&nbsp;&nbsp;&nbsp;Change language:'
                             for lang in languages:
-                                self.output += ' <a href="changeto.' + lang + '">' + lang + '</a>'
+                                self.output += ' <a href="changeto.' + lang['shortName'] + '">' + lang['nativeName'] + '</a>'
 
                 if self.shall_border(previous['tag'], previous['attrs']):
                     self.output += '</div>'
@@ -642,8 +665,7 @@ class DocphpSelectLanguageCommand(sublime_plugin.TextCommand):
         view = self.view
         currentView = view
 
-        availableLanguages = getSetting('languages')
-        self.languageList, _ = getLanguageList(availableLanguages)
+        self.languageList, _ = getLanguageList(getAll=False)
 
         currentView.window().show_quick_panel(self.languageList, self.selectLanguageCallback)
 
