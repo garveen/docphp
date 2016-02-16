@@ -370,7 +370,7 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
             flags=sublime.COOPERATE_WITH_AUTO_COMPLETE | sublime.HTML,
             location=-1,
             max_width=min(getSetting('popup_max_width'), width),
-            max_height=min(getSetting('popup_max_height'), height),
+            max_height=min(getSetting('popup_max_height'), height - 100),
             on_navigate=self.on_navigate,
             on_hide=self.on_hide
         )
@@ -557,10 +557,14 @@ class PopupHTMLParser(HTMLParser):
         for k in attrs:
             v = attrs[k]
             if k == 'class':
-                if re.search('\\b(phpcode|classsynopsis|methodsynopsis|note|informaltable|tip)\\b', v):
+                if re.search('\\b(phpcode|classsynopsis|methodsynopsis|note|informaltable)\\b', v):
                     return 'gray'
+                elif re.search('\\b(tip)\\b', v):
+                    return 'blue'
                 elif re.search('\\b(warning)\\b', v):
                     return 'pink'
+                elif re.search('\\b(caution)\\b', v):
+                    return 'yellow'
         return False
 
     def get_tag_text(self, tag, attrs, is_startend=False):
