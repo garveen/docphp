@@ -37,6 +37,9 @@ def plugin_loaded():
     if not os.path.isdir(docphpPath + 'language'):
         os.makedirs(docphpPath + 'language')
 
+    if not callable(sublime_symbol.symbol_at_point) or not callable(sublime_symbol.navigate_to_symbol):
+        sublime.error_message('Cannot find symbol_at_point from Default.sublime-package\n\nPlease restore the file which usually replaced by outdated localizations')
+
     from package_control import events
 
     if events.install(package_name) or not language:
