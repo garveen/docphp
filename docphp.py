@@ -736,12 +736,7 @@ class DocphpSearchCommand(sublime_plugin.TextCommand):
         if at_point:
             symbol = view.substr(view.word(view.sel()[0]))
 
-        files = []
-
-        for tarinfo in tar.getmembers():
-            m = re.search('^.*?/(.*)\.html$', tarinfo.name)
-            if m:
-                files.append(m.group(1).replace('-', '_'))
+        files = list(docphp_languages[language]["symbolList"].keys())
         files.sort()
 
         def show(index):
