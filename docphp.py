@@ -740,7 +740,7 @@ class DocphpSearchCommand(sublime_plugin.TextCommand):
         if at_point:
             symbol = view.substr(view.word(view.sel()[0]))
 
-        files = list(docphp_languages[language]["symbolList"].keys())
+        files = list(map(lambda file: re.sub('-', '_', file), docphp_languages[language]["symbolList"].keys()))
         files.sort()
 
         def show(index):
@@ -759,7 +759,9 @@ class DocphpSearchCommand(sublime_plugin.TextCommand):
                     pass
         currentView.window().show_quick_panel(files, show, selected_index=selected_index)
 
+
 class DocphpInsertCommand(sublime_plugin.TextCommand):
+
     def run(self, edit, string):
         self.view.insert(edit, self.view.sel()[0].b, string)
 
