@@ -394,19 +394,22 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
             webbrowser.open_new(url)
             return True
 
-        m = re.search('changeto\.(.*)', url)
+        m = re.search('^(changeto|constant)\.(.*)', url)
         if m:
-            symbol, content = getSymbolDescription(self.currentSymbol, m.group(1))
-        else:
-            if url == 'history.back':
-                symbol = self.history.pop()
-                self.currentSymbol = symbol
-
+            if m.group(1) == 'changeto':
+                symbol, content = getSymbolDescription(self.currentSymbol, m.group(2))
             else:
-                self.history.append(self.currentSymbol)
-                symbol = url[:url.find('.html')]
-                self.currentSymbol = symbol
-            symbol, content = getSymbolDescription(symbol)
+                self.view.run_command('docphp_insert', {"string": m.group(2)})
+                self.view.hide_popup()
+
+        elif url == 'history.back':
+            symbol = self.history.pop()
+            self.currentSymbol = symbol
+        else:
+            self.history.append(self.currentSymbol)
+            symbol = url[:url.find('.html')]
+            self.currentSymbol = symbol
+        symbol, content = getSymbolDescription(symbol)
 
         if content == False:
             return False
@@ -430,6 +433,7 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
         content = parser.output
         content = '<style>'+sublime.load_resource('Packages/' + package_name + '/style.css') + \
             '</style><div id="outer"><div id="container">' + content + "</div></div>"
+        content = re.sub('<strong><code>([A-Z_]+)</code></strong>', '<strong><code><a class="constant" href="constant.\\1">\\1</a></code></strong>', content)
         return content
 
     def formatPanel(self, content):
@@ -754,6 +758,10 @@ class DocphpSearchCommand(sublime_plugin.TextCommand):
                 except ValueError:
                     pass
         currentView.window().show_quick_panel(files, show, selected_index=selected_index)
+
+class DocphpInsertCommand(sublime_plugin.TextCommand):
+    def run(self, edit, string):
+        self.view.insert(edit, self.view.sel()[0].b, string)
 
 
 class DocPHPListener(sublime_plugin.EventListener):
