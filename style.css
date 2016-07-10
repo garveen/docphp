@@ -1,5 +1,5 @@
 #outer{background-color:#f2f2f2;}
-#container{margin:10px}
+#container{margin:10px;color:#000;}
 .phpcode,.note,.tip,.classsynopsis,.methodsynopsis,.warning,.informaltable,.caution{padding:10px}
 .phpcode,.note,.classsynopsis,.methodsynopsis,.doctable.informaltable{background-color:#fff}
 .tip{background-color:#D9E6F2}
