@@ -1,0 +1,13 @@
+DocPHPManualer
+==============
+
+Thank you for upgrading.
+
+Any questions can send to:
+
+https://github.com/acabin/docphp/issues
+
+This upgrade
+============
+
+Now you can simply click on a constant like PREG_SPLIT_DELIM_CAPTURE to insert it.
