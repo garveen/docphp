@@ -1,17 +1,5 @@
 [
     {
-        "id": "tools",
-        "caption": "Tools",
-        "children":
-        [
-            {
-                "caption": "DocPHP...",
-                "command": "show_overlay",
-                "args": {"overlay": "command_palette", "text": "PHP Code Sniffer: " }
-            }
-        ]
-    },
-    {
         "mnemonic": "n",
         "caption": "Preferences",
         "id": "preferences",
