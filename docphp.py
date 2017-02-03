@@ -295,7 +295,7 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
     def want_event(self):
         return True
 
-    def run(self, edit, event=None, symbol=None, force=False):
+    def run(self, edit, event=None, symbol=None, force=False, auto=False):
         global language, currentView
         view = self.view
         currentView = view
@@ -324,10 +324,10 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
         if symbolDescription == None:
             if self.search_in_scope(symbol):
                 return
-            if getSetting('search_user_symbols') and len(locations):
+            if not auto and getSetting('search_user_symbols') and len(locations):
                 sublime_symbol.navigate_to_symbol(view, symbol, locations)
                 return
-            if getSetting('prompt_when_not_found'):
+            if not auto and getSetting('prompt_when_not_found'):
                 view.show_popup('not found', sublime.COOPERATE_WITH_AUTO_COMPLETE)
                 return
         if symbolDescription == False:
@@ -785,7 +785,7 @@ class DocPHPListener(sublime_plugin.EventListener):
         if (time.time() - self.prevTime) * 1000 > delayTime:
             self.delaying = False
             if not currentView.is_popup_visible():
-                currentView.run_command('docphp_show_definition')
+                currentView.run_command('docphp_show_definition', {"auto": True})
         else:
             sublime.set_timeout_async(self.doAutoShow, int(delayTime - (time.time() - self.prevTime) * 1000) + 50)
 
