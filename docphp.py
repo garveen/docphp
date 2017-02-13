@@ -295,7 +295,7 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
     def want_event(self):
         return True
 
-    def run(self, edit, event=None, symbol=None, force=False, auto=False):
+    def run(self, edit, event=None, symbol=None, force=False):
         global language, currentView
         view = self.view
         currentView = view
@@ -321,34 +321,16 @@ class DocphpShowDefinitionCommand(sublime_plugin.TextCommand):
 
         translatedSymbol, symbolDescription = getSymbolDescription(translatedSymbol)
 
-        if symbolDescription == None:
-            if self.search_in_scope(symbol):
-                return
-            if not auto and getSetting('search_user_symbols') and len(locations):
-                sublime_symbol.navigate_to_symbol(view, symbol, locations)
-                return
-            if not auto and getSetting('prompt_when_not_found'):
+        if not symbolDescription:
+            if getSetting('prompt_when_not_found'):
                 view.show_popup('not found', sublime.COOPERATE_WITH_AUTO_COMPLETE)
                 return
-        if symbolDescription == False:
             return
 
         if getSetting('use_panel') == False:
             self.show_popup(translatedSymbol, symbolDescription)
         else:
             self.show_panel(translatedSymbol, symbolDescription, edit)
-
-    def search_in_scope(self, symbol):
-        search_str = self.view.substr(self.view.line(self.pt))
-        if re.search("(\$this\s*->|self\s*::|static\s*::)\s*" + re.escape(symbol), search_str) != None:
-            lower = symbol.lower()
-            for scopeSymbol in self.view.symbols():
-                if scopeSymbol[1].lower() == lower:
-                    self.view.sel().clear()
-                    self.view.sel().add(scopeSymbol[0])
-                    self.view.show(scopeSymbol[0])
-                    return True
-        return False
 
     def show_popup(self, symbol, symbolDescription):
         output = symbolDescription
@@ -785,7 +767,7 @@ class DocPHPListener(sublime_plugin.EventListener):
         if (time.time() - self.prevTime) * 1000 > delayTime:
             self.delaying = False
             if not currentView.is_popup_visible():
-                currentView.run_command('docphp_show_definition', {"auto": True})
+                currentView.run_command('docphp_show_definition')
         else:
             sublime.set_timeout_async(self.doAutoShow, int(delayTime - (time.time() - self.prevTime) * 1000) + 50)
 

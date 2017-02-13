@@ -43,7 +43,8 @@ DocPHPManualer will generate cache files, which usually located at SUBLIME_PATH/
 	"popup_max_width": 1280,
 
 	// Prompt "not found" when symbol not found
-	"prompt_when_not_found": true,
+	// default false because new ST3 version has user-defined symbols prompt
+	"prompt_when_not_found": false,
 
 	// Use the panel on the bottom instead of popup
 	"use_panel": false
