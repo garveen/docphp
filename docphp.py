@@ -614,13 +614,16 @@ class DocphpCheckoutLanguageCommand(sublime_plugin.TextCommand):
     def downloadLanguageGZ(self, name):
         err = None
         try:
-            url = 'http://php.net/distributions/manual/php_manual_' + name + '.tar.gz'
+            url = 'https://php.net/distributions/manual/php_manual_' + name + '.tar.gz'
 
             filename = getDocphpPath() + 'language/php_manual_' + name + '.tar.gz.downloading'
 
             response = urllib.request.urlopen(url)
             try:
-                totalsize = int(response.headers['Content-Length'])  # assume correct header
+                if response.headers['Content-Length']:
+                    totalsize = int(response.headers['Content-Length'])  # assume correct header
+                else:
+                    totalsize = None
             except NameError:
                 totalsize = None
             except KeyError:
